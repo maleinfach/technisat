@@ -30,14 +30,9 @@ public class Logfile {
 				else
 					m_oLogFile.createNewFile();
 			}
-		} catch (IOException e1) {
-			e1.printStackTrace();
-		}
-		try {
 			m_oLog = new PrintStream(new FileOutputStream(m_oLogFile));
-			
-		} catch (FileNotFoundException e) {
-			e.printStackTrace();
+		} catch (IOException e) {
+			e.printStackTrace();	
 		}
 	}
 	
