@@ -49,13 +49,24 @@ public class Logfile {
 			/*
 			 * Transport Log um Kommunikationsfehler nachvollziehen zu können
 			 */
-			String lcMsg = pcPrefix;
-			String lcPart = "";
-			for(int i=0; i<(pnLen>32?32:pnLen); i++) {
-				lcPart = String.format(Integer.toHexString(paData[i] & 0xff));
+			String lcMsg = "";
+			String lcDispl = "";			
+			Write(pcPrefix + " " + pnLen + " Bytes");
+			for(int i=1; i<=pnLen; i++) {				
+				String lcPart = String.format(Integer.toHexString(paData[i-1] & 0xff));
 				lcMsg += " " + ( lcPart.length()>1 ? lcPart : "0" + lcPart );
+				if(paData[i-1]>=32)
+					lcDispl += String.valueOf((char)paData[i-1]);
+				else
+					lcDispl +=".";
+				if(i%16==0 || i==pnLen) {
+					for(int x=i; x%16!=0; x++)
+						lcMsg += "   ";
+					Write(lcMsg + " | " + lcDispl);
+					lcMsg = "";
+					lcDispl = "";
+				}
 			}
-			Write(lcMsg);
 		}		
 	}
 }
