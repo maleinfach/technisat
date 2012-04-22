@@ -387,32 +387,24 @@ public class Technisat {
 	private boolean Connect(String pcHost) {
 		if(m_oProcessor!=null)
 			m_oProcessor.Quit();
-
+		
 		try {
-			Logfile.Write("Connecting "+pcHost);
+			Logfile.Write("Connecting "+pcHost);			
 			m_oSocket = new Socket(pcHost, 2376);
 			m_oSocket.setTcpNoDelay(true);
 			m_oSocket.setSoTimeout(1000);
 			m_oSocket.setReceiveBufferSize((1024*1024)*32);
-			try {
-				m_oRead = m_oSocket.getInputStream();
-				try {
-					m_oWrite = m_oSocket.getOutputStream();
-					m_oProcessor = new Processor(m_oRead, m_oWrite, m_oProps);
-					Logfile.Write("Connected to "+pcHost);
-					Cd("/");
-				} catch (IOException e) {
-					e.printStackTrace();
-				}				
-			} catch (IOException e) {
-				e.printStackTrace();
-			}		
+			m_oRead = m_oSocket.getInputStream();
+			m_oWrite = m_oSocket.getOutputStream();
+			m_oProcessor = new Processor(m_oRead, m_oWrite, m_oProps);
+			Logfile.Write("Connected to "+pcHost);
+			return Cd("/");
 		} catch (UnknownHostException e) {
 			Logfile.Write("Unknown Host "+e.getMessage());
 		} catch (IOException e) {
 			Logfile.Write("IO Error "+e.getMessage());
 		}
-		return true;
+		return false;
 	}
 
 	private String[] Match(String pcString, String pcRx) {
