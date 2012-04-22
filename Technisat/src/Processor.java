@@ -58,7 +58,8 @@ public class Processor {
     private DataInputStream _read() throws IOException {    	
     	int lnBytes = 0;    	
     	lnBytes = m_oRead.read(m_aBuffer);
-	
+    	Logfile.Data("RxD", m_aBuffer, lnBytes);
+    	
 		byte[] laData = new byte[lnBytes];
 		for(int i=0; i<lnBytes; i++)
 			laData[i]=m_aBuffer[i];
@@ -69,7 +70,8 @@ public class Processor {
     
 	public void write(byte[] paData) {
     	try {
-   			m_oWrite.write(paData);		
+    		Logfile.Data("TxD", paData, paData.length);
+   			m_oWrite.write(paData);
 		} catch (IOException e) {
 			System.out.println("Write Failed");
 		} 

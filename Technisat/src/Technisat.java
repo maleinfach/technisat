@@ -52,6 +52,7 @@ public class Technisat {
 		loTech.Set("PostCopyScript=");
 		loTech.Set("PostCopyThreadCount=1");
 		loTech.Set("Safeity=0");
+		loTech.Set("Transportlog=0");
 		
 		loTech.Shell(loStartScript);
 	}
@@ -274,6 +275,9 @@ public class Technisat {
 				if(lcSetVar.toUpperCase().equals("LOGFILE")) {
 					Logfile.Open(pcCommand);
 				}
+				if(lcSetVar.toUpperCase().equals("TRANSPORTLOG")) {
+					Logfile.m_bTransportLog = pcCommand.equals("1") ? true : false;
+				}				
 				return true;
 			}
 		}

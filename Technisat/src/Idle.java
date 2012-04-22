@@ -12,9 +12,12 @@ public class Idle extends Thread {
 			 * Processor Lock
 			 */
 			m_oProcessor.Lock();
-			
+			boolean lbTempDisTransLog = Logfile.m_bTransportLog;
+			if(lbTempDisTransLog)
+				Logfile.m_bTransportLog=false;
 			m_oProcessor.Idle();
-			
+			if(lbTempDisTransLog)
+				Logfile.m_bTransportLog=true;			
 			/*
 			 * Processor Unlock
 			 */
