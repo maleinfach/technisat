@@ -19,6 +19,8 @@ public class Logfile {
 	
 	static Calendar m_oCalendar = Calendar.getInstance(TimeZone.getDefault());
 	
+	static boolean m_bTransportLog = false;
+	
 	public static void Open(String pcLogFile) {
 		m_oLogFile = new File(pcLogFile);
 		try {
@@ -33,6 +35,7 @@ public class Logfile {
 		}
 		try {
 			m_oLog = new PrintStream(new FileOutputStream(m_oLogFile));
+			
 		} catch (FileNotFoundException e) {
 			e.printStackTrace();
 		}
@@ -44,5 +47,20 @@ public class Logfile {
 			m_oLog.println(m_oDate.format(m_oCalendar.getTime())+ " " + pcString);
 		}
 		System.out.println(pcString);
+	}
+	
+	public static void Data(String pcPrefix, byte[] paData, int pnLen) {
+		if(m_bTransportLog) {
+			/*
+			 * Transport Log um Kommunikationsfehler nachvollziehen zu können
+			 */
+			String lcMsg = pcPrefix;
+			String lcPart = "";
+			for(int i=0; i<(pnLen>32?32:pnLen); i++) {
+				lcPart = String.format(Integer.toHexString(paData[i] & 0xff));
+				lcMsg += " " + ( lcPart.length()>1 ? lcPart : "0" + lcPart );
+			}
+			Write(lcMsg);
+		}		
 	}
 }
