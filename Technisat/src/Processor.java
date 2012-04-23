@@ -121,14 +121,39 @@ public class Processor {
     	return GetHex(paData, paData.length);
     }
 
-	public void GetReceiverInfo() {
+	public String GetReceiverInfo() {
+		Lock();
+		String lcName = "Unknown";
 		write(Header.PT_GETSYSINFO);
 		try {
-			if(readack())
-				write(Header.PT_ACK);
+			DataInputStream loRecInfo = readdata();
+			byte[] laFlags = new byte[4];
+			loRecInfo.read(laFlags);
+			byte lnLangLen = loRecInfo.readByte();
+			byte[] laLang = new byte[lnLangLen];
+			loRecInfo.read(laLang);
+			byte lnNameLen = loRecInfo.readByte();
+			byte[] laName = new byte[lnNameLen];
+			loRecInfo.read(laName);
+			ack();
+			lcName = new String(laName);
 		} catch (IOException e) {
 			e.printStackTrace();
-		}
+		} finally {
+			Unlock();
+		}		
+		return lcName;
+	}
+	
+	private boolean ping() throws IOException {
+		ack();
+		return readack();
+	}
+	
+	private boolean ack() {
+		byte[] laBuffer = new byte[] { Header.PT_ACK };
+		write(laBuffer);
+		return true;
 	}
 	
 	public DvrDirectory GetRoot() {
@@ -193,9 +218,8 @@ public class Processor {
 		
 		write(pcDir); //Directory setzen hier weiﬂ ich nicht obs in zukunft noch probleme mit dem Zeichensatz gibt		
 		loData = readdata();
-		
-		write(Header.PT_ACK);
-		readack();
+
+		ping();
 		
 		try {
 			loData = readdata();

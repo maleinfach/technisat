@@ -31,6 +31,8 @@ public class Technisat {
 	private DvrDirectory m_oDirectory;
 	
 	private Properties m_oProps = new Properties();
+
+	private String m_cReceiver = "";
 	
 	public static void main(String[] args) throws Exception {
 		Technisat loTech = new Technisat();
@@ -142,7 +144,10 @@ public class Technisat {
 		}
 		
 		while(lbReadCommand) {
-			System.out.print("Technisat "+m_cPath+"> ");
+			if(m_cReceiver.equals(""))
+				System.out.print("Technisat "+m_cPath+"> ");
+			else
+				System.out.print(m_cReceiver+" "+m_cPath+"> ");
 			try {
 				lcCommand = loShell.readLine();
 				if(!Execute(lcCommand))
@@ -402,6 +407,7 @@ public class Technisat {
 			m_oWrite = m_oSocket.getOutputStream();
 			m_oProcessor = new Processor(m_oRead, m_oWrite, m_oProps);
 			Logfile.Write("Connected to "+pcHost);
+			m_cReceiver = m_oProcessor.GetReceiverInfo();
 			return Cd("/");
 		} catch (UnknownHostException e) {
 			Logfile.Write("Unknown Host "+e.getMessage());
