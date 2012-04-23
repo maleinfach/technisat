@@ -35,37 +35,58 @@ public class Processor {
 		m_oIdle = new Idle(this);
 		m_oIdle.start();
 	}
-
-	public DataInputStream read() {
-    	return _read(0,120);
-    }
 	
-	private DataInputStream _read(int pnRetry, int pnMaxRetry) {
-		DataInputStream loRead = null;
+	private int _read(int pnRetry, int pnMaxRetry, byte[] paBuffer, int pnMinBytes) {
+		int lnBytesReaded=0;
 		try {
-			loRead = _read();
+			lnBytesReaded = _read(paBuffer, pnMinBytes);
 		} catch (IOException e) {
 			if(pnRetry<pnMaxRetry)
-				return _read(pnRetry+1, pnMaxRetry);
+				return _read(pnRetry+1, pnMaxRetry, paBuffer, pnMinBytes);
 			else {
 				System.out.println("Socket Error " + e.getMessage());
-				return null;
+				return -1;
 			}
 		}
-    	return loRead;
+    	return lnBytesReaded;
 	}
     
-    private DataInputStream _read() throws IOException {    	
-    	int lnBytes = 0;    	
-    	lnBytes = m_oRead.read(m_aBuffer);
-    	Logfile.Data("RxD", m_aBuffer, lnBytes);
+    private int _read(
+    		byte[] paBuffer, int pnMinBytes
+    		) throws IOException {
     	
-		byte[] laData = new byte[lnBytes];
-		for(int i=0; i<lnBytes; i++)
-			laData[i]=m_aBuffer[i];
+    	int lnBytes = m_oRead.read(paBuffer, 0, ( pnMinBytes > 0 ? pnMinBytes : paBuffer.length) );
+    	Logfile.Data("RxD", paBuffer, lnBytes);
+		return lnBytes;
+    }
+    
+    private boolean readack() throws IOException {
+    	byte[] laBuffer = new byte[1];
+    	if(_read(0, 32, laBuffer, 1)>0) {
+    		switch(laBuffer[0]) {
+    		case 1:
+    			return true;
+    		case -7:
+    			try {
+					Thread.sleep(1000);
+				} catch (InterruptedException e) {
+					e.printStackTrace();
+				}
+    			return readack();
+    		}
+    	}
+		return false;
+    }
 
-		ByteArrayInputStream loData = new ByteArrayInputStream(laData);
-		return new DataInputStream(loData);
+    private DataInputStream readdata() throws IOException {
+    	byte[] laBuffer = new byte[65536];
+    	int lnBytes = _read(0, 8, laBuffer, 0);
+    	if(lnBytes>0) {
+    		byte[] laData = new byte[lnBytes];
+    		System.arraycopy(laBuffer, 0, laData, 0, lnBytes);
+    		return new DataInputStream(new ByteArrayInputStream(laData));
+    	}
+    	return null;
     }
     
 	public void write(byte[] paData) {
@@ -101,15 +122,18 @@ public class Processor {
     }
 
 	public void GetReceiverInfo() {
-		DataInputStream loData;
 		write(Header.PT_GETSYSINFO);
-		loData = read();
-		write(Header.PT_ACK);
+		try {
+			if(readack())
+				write(Header.PT_ACK);
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
 	}
 	
 	public DvrDirectory GetRoot() {
 		Lock();
-		byte lbRead, lbAnz;
+		short lnAnz;
 		boolean lbBusy = true;
 		try {
 			DvrDirectory loReturn = new DvrDirectory();
@@ -121,33 +145,11 @@ public class Processor {
 			byte[] laGetRoot = new byte[3];
 			laGetRoot[0]=Header.PT_GETDIR;
 			write(laGetRoot);
+			readack(); // Read Response
 			
-			while(lbBusy) {		
-				loData = read(); // Read Response (1 = Ready, <> Busy)				
-				byte lbStatus = loData.readByte();
-				switch(lbStatus) {
-				case 1:
-					//System.out.println("Device is Online");
-					lbBusy = false;
-					break;
-				case -7:
-					Logfile.Write("Device is starting Up...");
-					break;
-				case -4:
-				default:
-					Logfile.Write("Device is Busy (Status Code " + lbStatus+"), Please Wait...");					
-					try {
-						Thread.sleep(1000);
-						write(laGetRoot);
-					} catch (InterruptedException e) {
-						e.printStackTrace();
-					}
-					break;
-				}
-			}
-			lbRead = loData.readByte();
-			lbAnz = loData.readByte();
-			while(lbAnz>0) {
+			loData = readdata();
+			lnAnz = loData.readShort();
+			while(lnAnz>0) {
 				/*
 				 * Read Root Directorys from the Receiver
 				 */
@@ -158,7 +160,7 @@ public class Processor {
 				loData.read(lcDir);
 				//System.out.println(lcDir);
 				loReturn.m_oDirectorys.add(new DvrDirectory(new String(lcDir)));
-				lbAnz--;
+				lnAnz--;
 			}
 			//write(Header.PT_ACK);
 			//loData = read();
@@ -171,7 +173,7 @@ public class Processor {
 		return null;
 	}	
 	
-	public DvrDirectory GetDir(String pcDir) {
+	public DvrDirectory GetDir(String pcDir) throws IOException {
 		Lock();
 		DvrDirectory loDir = new DvrDirectory();
 		Calendar loCalendar = Calendar.getInstance(TimeZone.getDefault());
@@ -185,18 +187,18 @@ public class Processor {
 		 * 0x00, 0x01 (0x01 = Da kommt noch ein Verzeichnis Name)
 		 */
 		laGetDir[1]=0;
-		laGetDir[2]=Header.PT_ACK;
+		laGetDir[2]=1;
 		write(laGetDir); //Send
-		loData = read();
+		readack();
 		
 		write(pcDir); //Directory setzen hier weiß ich nicht obs in zukunft noch probleme mit dem Zeichensatz gibt		
-		loData = read();
+		loData = readdata();
 		
 		write(Header.PT_ACK);
-		loData = read();
+		readack();
 		
 		try {
-			loData = read();
+			loData = readdata();
 			short lnAnzElements = loData.readShort();
 			while(lnAnzElements>0) {
 				/*
@@ -229,7 +231,7 @@ public class Processor {
 				loDir.m_oFiles.add(loFile);				
 				lnAnzElements--;
 				if(loData.available() == 0 && lnAnzElements>0) {
-					loData = read();
+					loData = readdata();
 				}
 			}
 			Unlock();
@@ -241,30 +243,6 @@ public class Processor {
 		return null;
 	}
 	
-	public void Wakeup() {
-		write(Header.PT_ACK);
-		DataInputStream loRead = read();
-		byte lbStatus;
-		try {
-			lbStatus = loRead.readByte();
-			System.out.println("Wakeup... "+lbStatus);
-			while(lbStatus!=1) {
-				System.out.println("Wakeup... "+lbStatus);
-				loRead = read();
-				lbStatus = loRead.readByte();
-			}			
-		} catch (IOException e) {
-			e.printStackTrace();
-		}
-	}
-	
-	public int parseInt(byte[] paBuffer, int pnOffSet, int pnCnt) {
-		int number = 0;     
-		for (int i = 0; i < pnCnt; ++i) {
-		    number |= (paBuffer[pnCnt-i] & 0xff) << (i << 3);
-		}
-		return number;
-	}
 	/*
 	 * Download a File from the Reciever to the
 	 * Destination File specified in pcDstFile
@@ -359,15 +337,15 @@ public class Processor {
 			//------
 			loSocketWrite.writeLong(0); //Start Position (maybe!!)
 			write(loSocketWriteLow.toByteArray()); // Send Message to DVR
-			loSocketRead = read();
+			loSocketRead = readdata();
 			write(Header.PT_ACK);			
 			/*
 			 * Read First Chunk
 			 */
-			loSocketRead = read();
+			loSocketRead = readdata();
 			while(lbRead) {				
 				if(loSocketRead.available()==0) {					
-					loSocketRead = read();					
+					loSocketRead = readdata();					
 				}				
 				if(lnChunkSize==0) {
 					/*
@@ -489,7 +467,7 @@ public class Processor {
 			loCommand.writeByte(0x17);
 			loCommand.writeShort(poFile.getRecNo());
 			write(loLowLevelCommand.toByteArray());
-			DataInputStream loResponse = read();			
+			DataInputStream loResponse = readdata();			
 			lbResponse = loResponse.readByte();
 			if(lbResponse==1)
 				lbOk = true;
@@ -525,10 +503,10 @@ public class Processor {
 		//System.out.println("Unlock()");
 	}
 
-	public void Idle() {
+	public void Idle() throws IOException {
 		DataInputStream loResponse = null;
 		write(Header.PT_ACK);
-		loResponse = read();		
+		readack();
 	}
 
 	public void Quit() {

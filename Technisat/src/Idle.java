@@ -1,3 +1,5 @@
+import java.io.IOException;
+
 /*
  * Diese Klasse sendet Idle Pakete damit der Receiver
  * die Verbindung nicht abbaut.
@@ -15,7 +17,11 @@ public class Idle extends Thread {
 			boolean lbTempDisTransLog = Logfile.m_bTransportLog;
 			if(lbTempDisTransLog)
 				Logfile.m_bTransportLog=false;
-			m_oProcessor.Idle();
+			try {
+				m_oProcessor.Idle();
+			} catch (IOException e1) {
+				e1.printStackTrace();
+			}
 			if(lbTempDisTransLog)
 				Logfile.m_bTransportLog=true;			
 			/*

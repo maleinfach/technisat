@@ -61,7 +61,7 @@ public class Technisat {
 		poDir.PrintTo(System.out);
 	}
 	
-	public boolean Cd(String pcDir) {
+	public boolean Cd(String pcDir) throws IOException {
 		if(IsConnected()) {
 			DvrDirectory loDir = null;
 			if(pcDir.equals("/")) {
@@ -210,7 +210,7 @@ public class Technisat {
 		return loFilterDir;
 	}
 	
-	private boolean Execute(String pcCommand) {
+	private boolean Execute(String pcCommand) throws IOException {
 		
 		if(pcCommand.trim().equals(""))
 			return true;
