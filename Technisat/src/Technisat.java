@@ -29,8 +29,6 @@ public class Technisat {
 	private String m_cPath;
 	
 	private DvrDirectory m_oDirectory;
-	
-	private Properties m_oProps = new Properties();
 
 	private String m_cReceiver = "";
 	
@@ -276,13 +274,10 @@ public class Technisat {
 				String lcSetVar = pcCommand.substring(0,lnIndex);
 				pcCommand = pcCommand.substring(lnIndex+1);
 				//System.out.println("SET VAR "+lcSetVar+" TO "+pcCommand);
-				m_oProps.setProperty(lcSetVar.toUpperCase(), pcCommand.trim());
+				Props.Set(lcSetVar.toUpperCase(), pcCommand.trim());
 				if(lcSetVar.toUpperCase().equals("LOGFILE")) {
 					Logfile.Open(pcCommand);
 				}
-				if(lcSetVar.toUpperCase().equals("TRANSPORTLOG")) {
-					Logfile.m_bTransportLog = pcCommand.equals("1") ? true : false;
-				}				
 				return true;
 			}
 		}
@@ -291,7 +286,7 @@ public class Technisat {
 	}
 	
 	private boolean SetList() {
-		m_oProps.list(System.out);
+		Props.List(System.out);
 		return true;
 	}
 
@@ -405,7 +400,7 @@ public class Technisat {
 			m_oSocket.setReceiveBufferSize((1024*1024)*32);
 			m_oRead = m_oSocket.getInputStream();
 			m_oWrite = m_oSocket.getOutputStream();
-			m_oProcessor = new Processor(m_oRead, m_oWrite, m_oProps);
+			m_oProcessor = new Processor(m_oRead, m_oWrite);
 			Logfile.Write("Connected to "+pcHost);
 			m_cReceiver = m_oProcessor.GetReceiverInfo();
 			return Cd("/");

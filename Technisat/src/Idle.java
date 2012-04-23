@@ -14,16 +14,16 @@ public class Idle extends Thread {
 			 * Processor Lock
 			 */
 			m_oProcessor.Lock();
-			boolean lbTempDisTransLog = Logfile.m_bTransportLog;
+			boolean lbTempDisTransLog = Props.TestProp("TRANSPORTLOG", "1");
 			if(lbTempDisTransLog)
-				Logfile.m_bTransportLog=false;
+				Props.Set("TRANSPORTLOG", "0");
 			try {
 				m_oProcessor.Idle();
 			} catch (IOException e1) {
 				e1.printStackTrace();
 			}
 			if(lbTempDisTransLog)
-				Logfile.m_bTransportLog=true;			
+				Props.Set("TRANSPORTLOG", "1");			
 			/*
 			 * Processor Unlock
 			 */

@@ -23,16 +23,14 @@ public class Processor {
 	byte[] m_aBuffer;
 	byte[] m_aSent;
 	Semaphore m_oSemaphore = new Semaphore(1, true);
-	Properties m_oProps ;
 
-	public Processor(InputStream poRead, OutputStream poWrite, Properties poProps) {
+	public Processor(InputStream poRead, OutputStream poWrite) {
 		m_oRead = poRead;
 		m_oWrite = poWrite;
 		m_aBuffer = new byte[65536];
 		/*
 		 * Thread for Idle Communication
 		 */
-		m_oProps = poProps;
 		m_oIdle = new Idle(this);
 		m_oIdle.start();
 	}
@@ -299,8 +297,8 @@ public class Processor {
 		if(pcDstFile.endsWith("/")) {
 			pcDstFile = pcDstFile + poFile.getUniqueFileName();
 		}
-		String lcPostCopyAction = m_oProps.getProperty("POSTCOPYSCRIPT");
-		int lnPostCopyThreads = Integer.parseInt(m_oProps.getProperty("POSTCOPYTHREADCOUNT"));
+		String lcPostCopyAction = Props.Get("POSTCOPYSCRIPT");
+		int lnPostCopyThreads = Integer.parseInt(Props.Get("POSTCOPYTHREADCOUNT"));
 		boolean lbStartDownload = false;
 		boolean lbPostCopyAction = false;
 		long lnPrintInfo = 1000;
@@ -340,7 +338,7 @@ public class Processor {
 		 */
 		File loTsFile = new File(pcDstFile);
 		if(loTsFile.exists()) {
-			if(m_oProps.getProperty("SAFEITY").equals("1")) {
+			if(Props.Get("SAFEITY").equals("1")) {
 				Logfile.Write("Error File "+pcDstFile+" already exists!");
 				Unlock();
 				return false;

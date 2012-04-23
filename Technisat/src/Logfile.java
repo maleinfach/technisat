@@ -19,8 +19,6 @@ public class Logfile {
 	
 	static Calendar m_oCalendar = Calendar.getInstance(TimeZone.getDefault());
 	
-	static boolean m_bTransportLog = false;
-	
 	public static void Open(String pcLogFile) {
 		m_oLogFile = new File(pcLogFile);
 		try {
@@ -45,7 +43,7 @@ public class Logfile {
 	}
 	
 	public static void Data(String pcPrefix, byte[] paData, int pnLen) {
-		if(m_bTransportLog) {
+		if(Props.Get("TRANSPORTLOG").equals("1")) {
 			/*
 			 * Transport Log um Kommunikationsfehler nachvollziehen zu können
 			 */
