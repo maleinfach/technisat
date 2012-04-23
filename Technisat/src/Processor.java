@@ -21,6 +21,7 @@ public class Processor {
 	OutputStream m_oWrite;
 	Idle m_oIdle;
 	byte[] m_aBuffer;
+	byte[] m_aSent;
 	Semaphore m_oSemaphore = new Semaphore(1, true);
 	Properties m_oProps ;
 
@@ -66,12 +67,20 @@ public class Processor {
     		switch(laBuffer[0]) {
     		case 1:
     			return true;
-    		case -7:
+    		case -4:
+    			Logfile.Write("Disk is Busy (Record/Replay in Progress)");
+    			/*
+    			 * Busy Loop
+    			 */
     			try {
 					Thread.sleep(1000);
+					rewrite();
 				} catch (InterruptedException e) {
 					e.printStackTrace();
-				}
+				}    			
+    			return readack();
+    		case -7:
+    			Logfile.Write("Disk is staring up...");
     			return readack();
     		}
     	}
@@ -92,10 +101,20 @@ public class Processor {
 	public void write(byte[] paData) {
     	try {
     		Logfile.Data("TxD", paData, paData.length);
+    		m_aSent = paData;
    			m_oWrite.write(paData);
 		} catch (IOException e) {
 			System.out.println("Write Failed");
 		} 
+	}
+	
+	public void rewrite() {
+    	try {
+    		Logfile.Data("TxD", m_aSent, m_aSent.length);
+   			m_oWrite.write(m_aSent);
+		} catch (IOException e) {
+			System.out.println("Write Failed");
+		}		
 	}
 	
 	public void write(byte pByte) {
