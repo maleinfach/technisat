@@ -129,10 +129,10 @@ public class Technisat {
 		}
 		
 		System.out.println("Technisat Receiver Command Line Tool");
-		System.out.println("Developed by Matthias Schröder (Hamburg, Germany)");
 		System.out.println("Website Blog: http://www.maleinfach.de");
+		System.out.println("GitHub: https://github.com/FreeOrg/technisat");
 		System.out.println("-----------------");
-		
+
 		BufferedReader loShell = null;
 		try {
 			if(lcOs.equals("Windows_NT"))
