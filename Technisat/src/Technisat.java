@@ -372,7 +372,7 @@ public class Technisat {
 				} catch (InterruptedException e) {
 					e.printStackTrace();
 				}
-				lbWait = m_oProcessor.HasActiveThreads();				
+				lbWait = m_oProcessor.GetActiveThreadCount()>0;		
 			} while(lbWait);
 			m_oProcessor.Quit();
 			try {

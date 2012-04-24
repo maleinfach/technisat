@@ -14,12 +14,17 @@ import java.util.TimeZone;
 import java.util.concurrent.Semaphore;
 
 public class Processor {
-	InputStream m_oRead;
-	OutputStream m_oWrite;
-	Idle m_oIdle;
-	byte[] m_aSent;
-	Semaphore m_oSemaphore = new Semaphore(1, true);
-	int m_nActivePostCopyThreads = 0;
+	private InputStream m_oRead;
+	
+	private OutputStream m_oWrite;
+	
+	private Idle m_oIdle;
+	
+	private byte[] m_aSent;
+	
+	private Semaphore m_oSemaphore = new Semaphore(1, true);
+	
+	private int m_nActivePostCopyThreads = 0;
 
 	public Processor(InputStream poRead, OutputStream poWrite) {
 		m_oRead = poRead;
@@ -173,18 +178,6 @@ public class Processor {
 		byte[] laBytes = pcValue.getBytes();
 		write(laBytes);
 	}
-
-    public String GetHex(byte[] paData, int pnBytes) {
-    	String lcResponse = "";
-    	for(int i=0; i<pnBytes; i++) {
-    		lcResponse = lcResponse + Integer.toHexString(paData[i] & 0xff) + " ";
-    	}
-    	return lcResponse;
-    }
-	
-    public String GetHex(byte[] paData) {
-    	return GetHex(paData, paData.length);
-    }
 
 	public String GetReceiverInfo() {
 		Lock();
@@ -538,12 +531,12 @@ public class Processor {
 		readack();
 	}
 
-	public boolean HasActiveThreads() {
+	public int GetActiveThreadCount() {
 		Lock();
 		Logfile.Write("Active Threads "+m_nActivePostCopyThreads);
-		boolean lbReturn = m_nActivePostCopyThreads>0;
+		int lnReturn = m_nActivePostCopyThreads;
 		Unlock();
-		return lbReturn;
+		return lnReturn;
 	}
 	
 
@@ -551,7 +544,7 @@ public class Processor {
 		Lock();
 	}		
 	
-	public class Idle extends Thread {
+	private class Idle extends Thread {
 		public Idle(Processor poProcessor) {
 			m_oProcessor = poProcessor;
 		}
@@ -585,7 +578,7 @@ public class Processor {
 		Processor m_oProcessor;
 	}
 	
-	public class PostCopy extends Thread {
+	private class PostCopy extends Thread {
 		String m_cCommand;
 		DvrFile m_oFile;
 		Processor m_oProcessor;
