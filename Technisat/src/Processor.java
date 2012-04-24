@@ -233,7 +233,7 @@ public class Processor {
 		write(laGetDir); //Send
 		readack();
 		
-		write(pcDir); //Directory setzen hier weiß ich nicht obs in zukunft noch probleme mit dem Zeichensatz gibt		
+		write(pcDir); //Directory setzen hier weiÃŸ ich nicht obs in zukunft noch probleme mit dem Zeichensatz gibt		
 		loData = readdata();
 
 		ping();
@@ -264,7 +264,7 @@ public class Processor {
 				//System.out.println(GetHex(lbTimeStamp));
 				
 				/*
-				 *TODO: Zeitzone prüfen 
+				 *TODO: Zeitzone prÃ¼fen 
 				 */
 				loCalendar.add(Calendar.SECOND, lnTimeStamp);
 				DvrFile loFile = new DvrFile(lcFileName, lnSize, lnIndex, lbType, loCalendar.getTime());
@@ -406,8 +406,8 @@ public class Processor {
 						
 						/*
 						 * Performance Info berechnen / Ausgeben
-						 * Das was jetzt kommt ist alles nur für die Ausgabe der Statusinformationen.
-						 * Für die eigentliche Datenübertragung unwichtig.
+						 * Das was jetzt kommt ist alles nur fÃ¼r die Ausgabe der Statusinformationen.
+						 * FÃ¼r die eigentliche DatenÃ¼bertragung unwichtig.
 						 */
 						if(System.currentTimeMillis()-lnPerfTime>lnPrintInfo) {
 							long lnFileSize = poFile.getFileSize()/1000;

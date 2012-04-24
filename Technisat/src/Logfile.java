@@ -45,7 +45,7 @@ public class Logfile {
 	public static void Data(String pcPrefix, byte[] paData, int pnLen) {
 		if(Props.Get("TRANSPORTLOG").equals("1")) {
 			/*
-			 * Transport Log um Kommunikationsfehler nachvollziehen zu können
+			 * Transport Log um Kommunikationsfehler nachvollziehen zu kÃ¶nnen
 			 */
 			String lcMsg = "";
 			String lcDispl = "";			
