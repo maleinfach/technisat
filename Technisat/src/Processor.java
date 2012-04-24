@@ -128,6 +128,24 @@ public class Processor {
     	}
     	throw new IOException("No Short Value");
     }
+
+    private int readint() throws IOException {
+    	byte[] laShort = new byte[4];
+    	int lnBytes = _read(0, 8, laShort, 4);
+    	if(lnBytes==4) {
+    		return (new DataInputStream((new ByteArrayInputStream(laShort)))).readInt();
+    	}
+    	throw new IOException("No Short Value");
+    }     
+    
+    private long readlong() throws IOException {
+    	byte[] laShort = new byte[8];
+    	int lnBytes = _read(0, 8, laShort, 8);
+    	if(lnBytes==8) {
+    		return (new DataInputStream((new ByteArrayInputStream(laShort)))).readLong();
+    	}
+    	throw new IOException("No Short Value");
+    }    
     
     public void write(byte[] paData) {
     	try {
@@ -179,8 +197,8 @@ public class Processor {
 		try {
 			byte[] laFlags = new byte[4];
 			readbyte(laFlags);
-			lcLang = readfield();
-			lcName = readfield();
+			lcLang = readstring();
+			lcName = readstring();
 			ack();
 		} catch (IOException e) {
 			e.printStackTrace();
@@ -201,11 +219,14 @@ public class Processor {
 		return true;
 	}
 	
-	public String readfield() throws IOException {
+	public String readstring() throws IOException {
 		byte lnFieldLen = readbyte();
 		byte[] laField = new byte[lnFieldLen];
 		if(readbyte(laField)) {
-			return new String(laField, "CP1252");
+			if(laField[0]==0x05) //Ist mir noch nicht ganz Klar, vll. CodePage Informationen
+				return new String(laField, 1, laField.length-1, "CP1252");
+			else
+				return new String(laField, "CP1252");
 		}
 		return null;
 	}
@@ -237,12 +258,12 @@ public class Processor {
 				switch(lbType)
 				{
 				case 0:
-					lcName = readfield();					
+					lcName = readstring();					
 					break;
 				case 9:
 					//TODO: not tested (Technisat Technistar with USB Stick)
-					lcDescription = readfield();
-					lcName = readfield();
+					lcDescription = readstring();
+					lcName = readstring();
 					break;
 				default:
 					throw new IOException("Unknown Type " + lbType);
@@ -279,13 +300,12 @@ public class Processor {
 		readack();
 		
 		write(pcDir); //Directory setzen hier weiß ich nicht obs in zukunft noch probleme mit dem Zeichensatz gibt		
-		loData = readdata();
+		byte lbResponse = readbyte();
 
 		ping();
 		
 		try {
-			loData = readdata();
-			short lnAnzElements = loData.readShort();
+			short lnAnzElements = readshort();
 			while(lnAnzElements>0) {
 				/*
 				 * Die Technisat Zeitstempel sind irgendwie die anzahl der Sekunden
@@ -293,40 +313,29 @@ public class Processor {
 				 */
 				loCalendar.set(2000, 01, 01, 00, 00, 00);
 				loCalendar.add(Calendar.MONTH, -1);
-				byte lbType = loData.readByte();
-				short lnIndex = loData.readShort();
-				byte lnLen = loData.readByte();
-				byte lbUnknown = loData.readByte();
-				byte[] laFileName = new byte[lnLen-1];
-				loData.read(laFileName);
-				String lcFileName = new String(laFileName,"CP1252"); //Dateinamen sind in CP1252 codiert
+				byte lbType = readbyte();
+				short lnIndex = readshort();
+				String lcFileName = readstring();
 
-				//System.out.println(lcFileName);
-				long lnSize = loData.readLong();
-				byte[] lbTimeStamp = new byte[4];
-				int lnTimeStamp = loData.readInt();
-				//loData.read(lbTimeStamp);
-				//System.out.println(GetHex(lbTimeStamp));
-				
+				long lnSize = readlong();
+				int lnTimeStamp = readint();
+
 				/*
 				 *TODO: Zeitzone prüfen 
 				 */
 				loCalendar.add(Calendar.SECOND, lnTimeStamp);
 				DvrFile loFile = new DvrFile(lcFileName, lnSize, lnIndex, lbType, loCalendar.getTime());
-				//System.out.println(loFile);
-				loDir.m_oFiles.add(loFile);				
+				loDir.m_oFiles.add(loFile);
+				
 				lnAnzElements--;
-				if(loData.available() == 0 && lnAnzElements>0) {
-					loData = readdata();
-				}
 			}
-			Unlock();
-			return loDir;
 		} catch (IOException e) {
 			e.printStackTrace();
-		}
-		Unlock();
-		return null;
+			loDir = null;
+		} finally {
+			Unlock();
+		}		
+		return loDir;
 	}
 	
 	/*
