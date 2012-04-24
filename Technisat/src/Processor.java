@@ -221,7 +221,7 @@ public class Processor {
 	
 	public String readstring() throws IOException {
 		byte lnFieldLen = readbyte();
-		byte[] laField = new byte[lnFieldLen];
+		byte[] laField = new byte[lnFieldLen & 0xff];
 		if(readbyte(laField)) {
 			if(laField[0]==0x05) //Ist mir noch nicht ganz Klar, vll. CodePage Informationen
 				return new String(laField, 1, laField.length-1, "CP1252");
