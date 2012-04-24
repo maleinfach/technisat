@@ -8,13 +8,19 @@ public class DvrDirectory {
 	public Vector<DvrDirectory> m_oDirectorys = new Vector<DvrDirectory>();	
 	public Vector<DvrFile> m_oFiles = new Vector<DvrFile>();
 	public String m_cName = "";
+	public String m_cDescription = "";
 	
-	public DvrDirectory() {
-		
+	public DvrDirectory(String pcName, String pcDescription) {
+		m_cName=pcName;
+		m_cDescription=pcDescription;
 	}
 	
 	public DvrDirectory(String pcName) {
 		m_cName=pcName;
+	}
+	
+	public DvrDirectory() {
+		m_cName="";
 	}
 	
 	public String toString() {

@@ -53,7 +53,12 @@ public class Processor {
     private int _read(
     		byte[] paBuffer, int pnMinBytes
     		) throws IOException {
-    	
+    	while(pnMinBytes>0 && m_oRead.available()<pnMinBytes)
+			try {
+				Thread.sleep(10);
+			} catch (InterruptedException e) {
+				e.printStackTrace();
+			}    	
     	int lnBytes = m_oRead.read(paBuffer, 0, ( pnMinBytes > 0 ? pnMinBytes : paBuffer.length) );
     	Logfile.Data("RxD", paBuffer, lnBytes);
 		return lnBytes;
@@ -85,6 +90,13 @@ public class Processor {
 		return false;
     }
 
+    /**
+     * @deprecated
+     * @comment
+     *  using this method is problematic.
+     * @return DataInputStream
+     * @throws IOException
+     */
     private DataInputStream readdata() throws IOException {
     	byte[] laBuffer = new byte[65536];
     	int lnBytes = _read(0, 8, laBuffer, 0);
@@ -96,7 +108,28 @@ public class Processor {
     	return null;
     }
     
-	public void write(byte[] paData) {
+    private byte readbyte() throws IOException {
+    	int lnBytes = _read(0, 8, m_aBuffer, 1);
+    	if(lnBytes>0)
+    		return m_aBuffer[0];
+    	throw new IOException("No Data");
+    }
+    
+    private boolean readbyte(byte[] paData) {
+    	int lnBytes = _read(0, 8, paData, paData.length);
+    	return lnBytes==paData.length;
+    }
+    
+    private short readshort() throws IOException {
+    	byte[] laShort = new byte[2];
+    	int lnBytes = _read(0, 8, laShort, 2);
+    	if(lnBytes==2) {
+    		return (new DataInputStream((new ByteArrayInputStream(laShort)))).readShort();
+    	}
+    	throw new IOException("No Short Value");
+    }
+    
+    public void write(byte[] paData) {
     	try {
     		Logfile.Data("TxD", paData, paData.length);
     		m_aSent = paData;
@@ -140,20 +173,15 @@ public class Processor {
 
 	public String GetReceiverInfo() {
 		Lock();
-		String lcName = "Unknown";
+		String lcName = "";
+		String lcLang = "";
 		write(Header.PT_GETSYSINFO);
 		try {
-			DataInputStream loRecInfo = readdata();
 			byte[] laFlags = new byte[4];
-			loRecInfo.read(laFlags);
-			byte lnLangLen = loRecInfo.readByte();
-			byte[] laLang = new byte[lnLangLen];
-			loRecInfo.read(laLang);
-			byte lnNameLen = loRecInfo.readByte();
-			byte[] laName = new byte[lnNameLen];
-			loRecInfo.read(laName);
+			readbyte(laFlags);
+			lcLang = readfield();
+			lcName = readfield();
 			ack();
-			lcName = new String(laName);
 		} catch (IOException e) {
 			e.printStackTrace();
 		} finally {
@@ -173,46 +201,63 @@ public class Processor {
 		return true;
 	}
 	
+	public String readfield() throws IOException {
+		byte lnFieldLen = readbyte();
+		byte[] laField = new byte[lnFieldLen];
+		if(readbyte(laField)) {
+			return new String(laField, "CP1252");
+		}
+		return null;
+	}
+
 	public DvrDirectory GetRoot() {
 		Lock();
-		short lnAnz;
-		boolean lbBusy = true;
-		try {
-			DvrDirectory loReturn = new DvrDirectory();
-			DataInputStream loData = null;
+		DvrDirectory loReturn = null;
+		
+		try {			
 			/*
 			 * Write Device Root Request to the Device
 			 * Command 0x03 0x00 0x00
 			 */
+			loReturn = new DvrDirectory();
 			byte[] laGetRoot = new byte[3];
 			laGetRoot[0]=Header.PT_GETDIR;
 			write(laGetRoot);
 			readack(); // Read Response
 			
-			loData = readdata();
-			lnAnz = loData.readShort();
+			short lnAnz = readshort();
 			while(lnAnz>0) {
 				/*
 				 * Read Root Directorys from the Receiver
 				 */
-				byte lbType = loData.readByte();
-				lbType = loData.readByte();
-				byte lnLen = loData.readByte();
-				byte[] lcDir = new byte[lnLen];
-				loData.read(lcDir);
-				//System.out.println(lcDir);
-				loReturn.m_oDirectorys.add(new DvrDirectory(new String(lcDir)));
+				byte lbType = readbyte();
+				byte lbUnknown = readbyte(); // Unknown Field
+				String lcName = "";
+				String lcDescription = "";
+				switch(lbType)
+				{
+				case 0:
+					lcName = readfield();					
+					break;
+				case 9:
+					//TODO: not tested (Technisat Technistar with USB Stick)
+					lcDescription = readfield();
+					lcName = readfield();
+					break;
+				default:
+					throw new IOException("Unknown Type " + lbType);
+				}
+				loReturn.m_oDirectorys.add(new DvrDirectory(lcName, lcDescription));
 				lnAnz--;
 			}
-			//write(Header.PT_ACK);
-			//loData = read();
-			
-			Unlock();
-			return loReturn;			
 		} catch (IOException e) {
+			loReturn = null;
+			Logfile.Write(e.getMessage());
 			e.printStackTrace();
+		} finally {
+			Unlock();
 		}
-		return null;
+		return loReturn;
 	}	
 	
 	public DvrDirectory GetDir(String pcDir) throws IOException {
@@ -530,22 +575,17 @@ public class Processor {
 
 	public void Lock() {
 		try {
-			//System.out.println("BeginAcuire()");
 			m_oSemaphore.acquire();
-			//System.out.println("Acuire()");
 		} catch (InterruptedException e) {
 			System.out.println("Semaphore Failed!");
 		}
 	}
 	
 	public void Unlock() {
-		//System.out.println("BeginUnlock()");
 		m_oSemaphore.release();
-		//System.out.println("Unlock()");
 	}
 
 	public void Idle() throws IOException {
-		DataInputStream loResponse = null;
 		write(Header.PT_ACK);
 		readack();
 	}
