@@ -9,10 +9,7 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.text.DecimalFormat;
-import java.text.NumberFormat;
 import java.util.Calendar;
-import java.util.Properties;
 import java.util.TimeZone;
 import java.util.concurrent.Semaphore;
 
@@ -20,14 +17,13 @@ public class Processor {
 	InputStream m_oRead;
 	OutputStream m_oWrite;
 	Idle m_oIdle;
-	byte[] m_aBuffer;
 	byte[] m_aSent;
 	Semaphore m_oSemaphore = new Semaphore(1, true);
+	int m_nActivePostCopyThreads = 0;
 
 	public Processor(InputStream poRead, OutputStream poWrite) {
 		m_oRead = poRead;
 		m_oWrite = poWrite;
-		m_aBuffer = new byte[65536];
 		/*
 		 * Thread for Idle Communication
 		 */
@@ -109,9 +105,10 @@ public class Processor {
     }
     
     private byte readbyte() throws IOException {
-    	int lnBytes = _read(0, 8, m_aBuffer, 1);
+    	byte[] laBuffer = new byte[1];
+    	int lnBytes = _read(0, 8, laBuffer, 1);
     	if(lnBytes>0)
-    		return m_aBuffer[0];
+    		return laBuffer[0];
     	throw new IOException("No Data");
     }
     
@@ -147,7 +144,7 @@ public class Processor {
     	throw new IOException("No Short Value");
     }    
     
-    public void write(byte[] paData) {
+    private void write(byte[] paData) {
     	try {
     		Logfile.Data("TxD", paData, paData.length);
     		m_aSent = paData;
@@ -157,7 +154,7 @@ public class Processor {
 		} 
 	}
 	
-	public void rewrite() {
+	private void rewrite() {
     	try {
     		Logfile.Data("TxD", m_aSent, m_aSent.length);
    			m_oWrite.write(m_aSent);
@@ -166,13 +163,13 @@ public class Processor {
 		}		
 	}
 	
-	public void write(byte pByte) {
+	private void write(byte pByte) {
 		byte[] laBytes = new byte[1];
 		laBytes[0] = pByte;
 		write(laBytes);
 	}
 	
-	public void write(String pcValue) {
+	private void write(String pcValue) {
 		byte[] laBytes = pcValue.getBytes();
 		write(laBytes);
 	}
@@ -219,7 +216,7 @@ public class Processor {
 		return true;
 	}
 	
-	public String readstring() throws IOException {
+	private String readstring() throws IOException {
 		byte lnFieldLen = readbyte();
 		byte[] laField = new byte[lnFieldLen & 0xff];
 		if(readbyte(laField)) {
@@ -231,28 +228,27 @@ public class Processor {
 		return null;
 	}
 	
-	public DvrDirectory GetDir(String pcDir) throws IOException {
-		Lock();
-		
+	public DvrDirectory GetDir(String pcDir) {
 		DvrDirectory loDir = new DvrDirectory();
-		Calendar loCalendar = Calendar.getInstance(TimeZone.getDefault());
-
-		byte[] laGetDir = new byte[] //Command
-			{
-				Header.PT_GETDIR,
-				0,
-				(byte) (pcDir==null ? 0 : 1)
-			};
-		write(laGetDir); //Send
-		readack();
+		Lock();
+		try {		
+			Calendar loCalendar = Calendar.getInstance(TimeZone.getDefault());
+			
+			byte[] laGetDir = new byte[] //Command
+				{
+					Header.PT_GETDIR,
+					0,
+					(byte) (pcDir==null ? 0 : 1)
+				};
+			write(laGetDir); //Send
+			readack();
+			
+			if(pcDir!=null) {
+				write(pcDir); //Directory setzen hier weiß ich nicht obs in zukunft noch probleme mit dem Zeichensatz gibt		
+				readbyte();
+				ping();
+			}
 		
-		if(pcDir!=null) {
-			write(pcDir); //Directory setzen hier weiß ich nicht obs in zukunft noch probleme mit dem Zeichensatz gibt		
-			readbyte();
-			ping();
-		}
-
-		try {
 			short lnAnzElements = readshort();
 			while(lnAnzElements>0) {
 				/*
@@ -293,9 +289,7 @@ public class Processor {
 	/*
 	 * Download a File from the Reciever to the
 	 * Destination File specified in pcDstFile
-	 */
-	public int m_nActivePostCopyThreads = 0;
-	
+	 */	
 	public boolean Download(DvrFile poFile, String pcDstFile) {
 		/*
 		 * Parameter Checks
@@ -527,7 +521,7 @@ public class Processor {
 		return lbOk;
 	}
 
-	public void Lock() {
+	private void Lock() {
 		try {
 			m_oSemaphore.acquire();
 		} catch (InterruptedException e) {
@@ -535,17 +529,100 @@ public class Processor {
 		}
 	}
 	
-	public void Unlock() {
+	private void Unlock() {
 		m_oSemaphore.release();
 	}
 
-	public void Idle() throws IOException {
+	private void Idle() throws IOException {
 		write(Header.PT_ACK);
 		readack();
 	}
 
+	public boolean HasActiveThreads() {
+		Lock();
+		Logfile.Write("Active Threads "+m_nActivePostCopyThreads);
+		boolean lbReturn = m_nActivePostCopyThreads>0;
+		Unlock();
+		return lbReturn;
+	}
+	
+
 	public void Quit() {
 		Lock();
-		return;
+	}		
+	
+	public class Idle extends Thread {
+		public Idle(Processor poProcessor) {
+			m_oProcessor = poProcessor;
+		}
+		public void run() {		
+			while(true) {
+				/*
+				 * Processor Lock
+				 */
+				m_oProcessor.Lock();
+				boolean lbTempDisTransLog = Props.TestProp("TRANSPORTLOG", "1");
+				if(lbTempDisTransLog)
+					Props.Set("TRANSPORTLOG", "0");
+				try {
+					m_oProcessor.Idle();
+				} catch (IOException e1) {
+					e1.printStackTrace();
+				}
+				if(lbTempDisTransLog)
+					Props.Set("TRANSPORTLOG", "1");			
+				/*
+				 * Processor Unlock
+				 */
+				m_oProcessor.Unlock();
+				try {
+					Thread.sleep(1000);
+				} catch (InterruptedException e) {
+					e.printStackTrace();
+				}
+			}
+		}	
+		Processor m_oProcessor;
+	}
+	
+	public class PostCopy extends Thread {
+		String m_cCommand;
+		DvrFile m_oFile;
+		Processor m_oProcessor;
+		String m_cDstFile;
+		
+		public PostCopy(String pcCommand, DvrFile poFile,String pcDstFile, Processor poProcessor) {
+			m_cCommand=pcCommand;
+			m_oFile=poFile;
+			m_oProcessor=poProcessor;
+			m_cDstFile=pcDstFile;
+		}
+		
+		public void run() {
+			try {
+				Runtime loRt = Runtime.getRuntime();
+				String[] lcCommand = new String[] {
+					m_cCommand,
+					m_cDstFile,
+					String.valueOf(m_oFile.getIndex())
+				};
+				
+				Logfile.Write("Execute: "+lcCommand);
+				Process loProc = loRt.exec(lcCommand);
+				
+				try {
+					int lnExitCode = loProc.waitFor();
+					Logfile.Write("PostCopyScript exited with Exit Code "+lnExitCode);
+					m_oProcessor.Lock();
+					m_oProcessor.m_nActivePostCopyThreads--;
+					m_oProcessor.Unlock();
+				} catch (InterruptedException e) {
+					e.printStackTrace();
+				}
+			} catch (IOException e) {
+				e.printStackTrace();
+			}
+			
+		}
 	}
 }

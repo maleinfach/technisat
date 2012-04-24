@@ -372,10 +372,7 @@ public class Technisat {
 				} catch (InterruptedException e) {
 					e.printStackTrace();
 				}
-				m_oProcessor.Lock();
-				Logfile.Write("Active Threads "+m_oProcessor.m_nActivePostCopyThreads);
-				lbWait = m_oProcessor.m_nActivePostCopyThreads>0;
-				m_oProcessor.Unlock();
+				lbWait = m_oProcessor.HasActiveThreads();				
 			} while(lbWait);
 			m_oProcessor.Quit();
 			try {
