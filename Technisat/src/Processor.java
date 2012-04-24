@@ -230,80 +230,28 @@ public class Processor {
 		}
 		return null;
 	}
-
-	public DvrDirectory GetRoot() {
-		Lock();
-		DvrDirectory loReturn = null;
-		
-		try {			
-			/*
-			 * Write Device Root Request to the Device
-			 * Command 0x03 0x00 0x00
-			 */
-			loReturn = new DvrDirectory();
-			byte[] laGetRoot = new byte[3];
-			laGetRoot[0]=Header.PT_GETDIR;
-			write(laGetRoot);
-			readack(); // Read Response
-			
-			short lnAnz = readshort();
-			while(lnAnz>0) {
-				/*
-				 * Read Root Directorys from the Receiver
-				 */
-				byte lbType = readbyte();
-				byte lbUnknown = readbyte(); // Unknown Field
-				String lcName = "";
-				String lcDescription = "";
-				switch(lbType)
-				{
-				case 0:
-					lcName = readstring();					
-					break;
-				case 9:
-					//TODO: not tested (Technisat Technistar with USB Stick)
-					lcDescription = readstring();
-					lcName = readstring();
-					break;
-				default:
-					throw new IOException("Unknown Type " + lbType);
-				}
-				loReturn.m_oDirectorys.add(new DvrDirectory(lcName, lcDescription));
-				lnAnz--;
-			}
-		} catch (IOException e) {
-			loReturn = null;
-			Logfile.Write(e.getMessage());
-			e.printStackTrace();
-		} finally {
-			Unlock();
-		}
-		return loReturn;
-	}	
 	
 	public DvrDirectory GetDir(String pcDir) throws IOException {
 		Lock();
+		
 		DvrDirectory loDir = new DvrDirectory();
 		Calendar loCalendar = Calendar.getInstance(TimeZone.getDefault());
-		DataInputStream loData = null;
-		byte[] laGetDir = new byte[3];
-		/*
-		 * 0x03
-		 */
-		laGetDir[0]=Header.PT_GETDIR;
-		/*
-		 * 0x00, 0x01 (0x01 = Da kommt noch ein Verzeichnis Name)
-		 */
-		laGetDir[1]=0;
-		laGetDir[2]=1;
+
+		byte[] laGetDir = new byte[] //Command
+			{
+				Header.PT_GETDIR,
+				0,
+				(byte) (pcDir==null ? 0 : 1)
+			};
 		write(laGetDir); //Send
 		readack();
 		
-		write(pcDir); //Directory setzen hier weiß ich nicht obs in zukunft noch probleme mit dem Zeichensatz gibt		
-		byte lbResponse = readbyte();
+		if(pcDir!=null) {
+			write(pcDir); //Directory setzen hier weiß ich nicht obs in zukunft noch probleme mit dem Zeichensatz gibt		
+			readbyte();
+			ping();
+		}
 
-		ping();
-		
 		try {
 			short lnAnzElements = readshort();
 			while(lnAnzElements>0) {
@@ -314,19 +262,23 @@ public class Processor {
 				loCalendar.set(2000, 01, 01, 00, 00, 00);
 				loCalendar.add(Calendar.MONTH, -1);
 				byte lbType = readbyte();
-				short lnIndex = readshort();
-				String lcFileName = readstring();
-
-				long lnSize = readlong();
-				int lnTimeStamp = readint();
-
-				/*
-				 *TODO: Zeitzone prüfen 
-				 */
-				loCalendar.add(Calendar.SECOND, lnTimeStamp);
-				DvrFile loFile = new DvrFile(lcFileName, lnSize, lnIndex, lbType, loCalendar.getTime());
-				loDir.m_oFiles.add(loFile);
-				
+				byte lbIsDir = readbyte(); //Nicht sicher
+				switch(lbType) {
+				case 0: //Directory
+					loDir.m_oDirectorys.add(new DvrDirectory(readstring()));
+					break;
+				case 4: //File Record SD Quality
+				case 7: //File Record HD Quality
+					short lnIndex = readbyte();
+					String lcFileName = readstring();
+					long lnSize = readlong();
+					int lnTimeStamp = readint();
+					loCalendar.add(Calendar.SECOND, lnTimeStamp);
+					loDir.m_oFiles.add( new DvrFile(lcFileName, lnSize, lnIndex, lbType, loCalendar.getTime()));
+					break;
+				default:
+					throw new IOException("Unknown RecordType " + lbType);
+				}
 				lnAnzElements--;
 			}
 		} catch (IOException e) {
@@ -573,13 +525,6 @@ public class Processor {
 		}
 		Unlock();
 		return lbOk;
-	}
-
-	public DvrDirectory Cd(String pcDir) {
-		if(pcDir.equals("/")) {
-			return GetRoot();
-		}
-		return null;
 	}
 
 	public void Lock() {

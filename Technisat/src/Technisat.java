@@ -65,7 +65,7 @@ public class Technisat {
 		if(IsConnected()) {
 			DvrDirectory loDir = null;
 			if(pcDir.equals("/")) {
-				loDir = m_oProcessor.GetRoot();
+				loDir = m_oProcessor.GetDir(null);
 				if(loDir!=null) {
 					m_cPath=pcDir;
 					m_oDirectory = loDir;
