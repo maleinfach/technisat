@@ -46,10 +46,11 @@ public class Logfile {
 		if(Props.Get("TRANSPORTLOG").equals("1")) {
 			/*
 			 * Transport Log um Kommunikationsfehler nachvollziehen zu können
-			 */
+			 */			
 			String lcMsg = "";
 			String lcDispl = "";			
 			Write(pcPrefix + " " + pnLen + " Bytes");
+			pnLen = pnLen>160 ? 160 : pnLen;
 			for(int i=1; i<=pnLen; i++) {				
 				String lcPart = String.format(Integer.toHexString(paData[i-1] & 0xff));
 				lcMsg += " " + ( lcPart.length()>1 ? lcPart : "0" + lcPart );

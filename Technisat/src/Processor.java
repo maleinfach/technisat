@@ -36,13 +36,13 @@ public class Processor {
 		m_oIdle.start();
 	}
 	
-	private int _read(int pnRetry, int pnMaxRetry, byte[] paBuffer, int pnMinBytes) {
+	private int _read(int pnRetry, int pnMaxRetry, byte[] paBuffer, int pnOffSet, int pnCount) {
 		int lnBytesReaded=0;
 		try {
-			lnBytesReaded = _read(paBuffer, pnMinBytes);
+			lnBytesReaded = _read(paBuffer, pnOffSet, pnCount);
 		} catch (IOException e) {
 			if(pnRetry<pnMaxRetry)
-				return _read(pnRetry+1, pnMaxRetry, paBuffer, pnMinBytes);
+				return _read(pnRetry+1, pnMaxRetry, paBuffer, pnOffSet, pnCount);
 			else {
 				System.out.println("Socket Error " + e.getMessage());
 				return -1;
@@ -52,22 +52,27 @@ public class Processor {
 	}
     
     private int _read(
-    		byte[] paBuffer, int pnMinBytes
-    		) throws IOException {
-    	while(pnMinBytes>0 && m_oRead.available()<pnMinBytes)
-			try {
-				Thread.sleep(10);
-			} catch (InterruptedException e) {
-				e.printStackTrace();
-			}    	
-    	int lnBytes = m_oRead.read(paBuffer, 0, ( pnMinBytes > 0 ? pnMinBytes : paBuffer.length) );
-    	Logfile.Data("RxD", paBuffer, lnBytes);
-		return lnBytes;
+    	byte[] paBuffer, int pnOffSet, int pnCount
+    	) throws IOException {
+      int lnReadPos = 0, lnBytes;
+      do{
+    	  /*
+    	   * read data from the socket while the readed byte
+    	   * count is lower than pnMinBytes
+    	   */
+    	  lnBytes = m_oRead.read(paBuffer, pnOffSet+lnReadPos, pnCount-lnReadPos );
+    	  if(lnBytes>=0)
+    		  lnReadPos+=lnBytes;
+    	  else
+    		  throw new IOException("Socket IO Exception "+lnBytes+ "("+lnReadPos+" of " + pnCount + " bytes readed)");
+      } while(pnCount>lnReadPos);
+      Logfile.Data("RxD", paBuffer, lnReadPos);
+      return lnReadPos;
     }
     
     private boolean readack() throws IOException {
     	byte[] laBuffer = new byte[1];
-    	if(_read(0, 32, laBuffer, 1)>0) {
+    	if(_read(0, 32, laBuffer, 0, 1)>0) {
     		switch(laBuffer[0]) {
     		case 1:
     			return true;
@@ -90,41 +95,27 @@ public class Processor {
     	}
 		return false;
     }
-
-    /**
-     * @deprecated
-     * @comment
-     *  using this method is problematic.
-     * @return DataInputStream
-     * @throws IOException
-     */
-    private DataInputStream readdata() throws IOException {
-    	byte[] laBuffer = new byte[65536];
-    	int lnBytes = _read(0, 8, laBuffer, 0);
-    	if(lnBytes>0) {
-    		byte[] laData = new byte[lnBytes];
-    		System.arraycopy(laBuffer, 0, laData, 0, lnBytes);
-    		return new DataInputStream(new ByteArrayInputStream(laData));
-    	}
-    	return null;
-    }
     
     private byte readbyte() throws IOException {
     	byte[] laBuffer = new byte[1];
-    	int lnBytes = _read(0, 8, laBuffer, 1);
+    	int lnBytes = _read(0, 8, laBuffer, 0, 1);
     	if(lnBytes>0)
     		return laBuffer[0];
     	throw new IOException("No Data");
     }
     
-    private boolean readbyte(byte[] paData) {
-    	int lnBytes = _read(0, 8, paData, paData.length);
-    	return lnBytes==paData.length;
+    private void readbyte(byte[] paData) {    	
+    	readbyte(paData, 0, paData.length);
     }
     
+
+	private void readbyte(byte[] paBuffer, int pnOffSet, int pnCount) {
+		_read(0, 8, paBuffer, pnOffSet, pnCount);
+	}    
+ 
     private short readshort() throws IOException {
     	byte[] laShort = new byte[2];
-    	int lnBytes = _read(0, 8, laShort, 2);
+    	int lnBytes = _read(0, 8, laShort, 0, 2);
     	if(lnBytes==2) {
     		return (new DataInputStream((new ByteArrayInputStream(laShort)))).readShort();
     	}
@@ -133,7 +124,7 @@ public class Processor {
 
     private int readint() throws IOException {
     	byte[] laShort = new byte[4];
-    	int lnBytes = _read(0, 8, laShort, 4);
+    	int lnBytes = _read(0, 8, laShort, 0, 4);
     	if(lnBytes==4) {
     		return (new DataInputStream((new ByteArrayInputStream(laShort)))).readInt();
     	}
@@ -142,7 +133,7 @@ public class Processor {
     
     private long readlong() throws IOException {
     	byte[] laShort = new byte[8];
-    	int lnBytes = _read(0, 8, laShort, 8);
+    	int lnBytes = _read(0, 8, laShort, 0, 8);
     	if(lnBytes==8) {
     		return (new DataInputStream((new ByteArrayInputStream(laShort)))).readLong();
     	}
@@ -175,8 +166,7 @@ public class Processor {
 	}
 	
 	private void write(String pcValue) {
-		byte[] laBytes = pcValue.getBytes();
-		write(laBytes);
+		write(pcValue.getBytes());
 	}
 
 	public String GetReceiverInfo() {
@@ -212,13 +202,12 @@ public class Processor {
 	private String readstring() throws IOException {
 		byte lnFieldLen = readbyte();
 		byte[] laField = new byte[lnFieldLen & 0xff];
-		if(readbyte(laField)) {
-			if(laField[0]==0x05) //Ist mir noch nicht ganz Klar, vll. CodePage Informationen
-				return new String(laField, 1, laField.length-1, "CP1252");
-			else
-				return new String(laField, "CP1252");
-		}
-		return null;
+		readbyte(laField);
+		
+		if(laField[0]==0x05)
+			return new String(laField, 1, laField.length-1, "CP1252");
+		else
+			return new String(laField, "CP1252");
 	}
 	
 	public DvrDirectory GetDir(String pcDir) {
@@ -237,7 +226,7 @@ public class Processor {
 			readack();
 			
 			if(pcDir!=null) {
-				write(pcDir); //Directory setzen hier weiß ich nicht obs in zukunft noch probleme mit dem Zeichensatz gibt		
+				write(pcDir); //Directory setzen hier weiÃŸ ich nicht obs in zukunft noch probleme mit dem Zeichensatz gibt		
 				readbyte();
 				ping();
 			}
@@ -324,7 +313,6 @@ public class Processor {
 		 */
 		ByteArrayOutputStream loSocketWriteLow = new ByteArrayOutputStream();
 		DataOutputStream loSocketWrite = new DataOutputStream(loSocketWriteLow);		
-		DataInputStream loSocketRead = null;
 		
 		/*
 		 * File Streams
@@ -338,153 +326,88 @@ public class Processor {
 			}
 		}
 		BufferedOutputStream loTs = null;
-		BufferedOutputStream loFile = null;
-		BufferedOutputStream loNextFile = null;
-		
-		int lnReadSize = 0;
-		int lnChunkSize = 0;
 		boolean lbRead = true;		
 		long lnBytesReaded = 0;
-		
-		try {
-			loTsFile.createNewFile();
-		} catch (IOException e1) {
-			e1.printStackTrace();
-			Unlock();
-			return false;
-		}
-		try {
-			loTs = new BufferedOutputStream(new FileOutputStream(loTsFile));
-		} catch (FileNotFoundException e1) {
-			Unlock();
-			e1.printStackTrace();
-			return false;
-		}
-		
+
 		try {
 			Logfile.Write("Copy File " + poFile.getFileName() + " to "+pcDstFile);
-			
+			loTs = new BufferedOutputStream(new FileOutputStream(loTsFile));			
+
 			loSocketWrite.writeByte(Header.PT_GETFILE); //Download Command;
-			loSocketWrite.writeShort(poFile.getIndex()); //File Index
-			
-			//TODO: Implement Download Resume
-			//------
+			loSocketWrite.writeShort(poFile.getIndex()); //File Index		
 			loSocketWrite.writeLong(0); //Start Position (maybe!!)
 			write(loSocketWriteLow.toByteArray()); // Send Message to DVR
-			loSocketRead = readdata();
-			write(Header.PT_ACK);			
-			/*
-			 * Read First Chunk
-			 */
-			loSocketRead = readdata();
-			while(lbRead) {				
-				if(loSocketRead.available()==0) {					
-					loSocketRead = readdata();					
-				}				
-				if(lnChunkSize==0) {
-					/*
-					 * ChunkSize=0 dann muss jetzt ein Chunk Header kommen.
-					 */
-					byte[] laChunkInfo = new byte[8];
-					byte[] laTemp = new byte[8]; 
-					loSocketRead.read(laChunkInfo);
+			
+			byte[] laFileInfo = new byte[25];
+			Logfile.Data("File Header", laFileInfo, laFileInfo.length);
+			readbyte(laFileInfo);
+			write(Header.PT_ACK);
+			byte[] laTemp = new byte[3];
+			do{		
+				byte lbChunkType = readbyte();
+				int lnChunkSize = 0;
 
-					DataInputStream loChunkReader = new DataInputStream(new ByteArrayInputStream(laChunkInfo));
-					byte lbChunkType = loChunkReader.readByte(); 
-					switch(lbChunkType) { 
-					case 0:
-						lnChunkSize = loChunkReader.readInt();
-						loChunkReader.read(laTemp,0,3); //Was das ist hab ich noch nicht raus gefunden
-						loFile = loTs;
-						
-						/*
-						 * Performance Info berechnen / Ausgeben
-						 * Das was jetzt kommt ist alles nur für die Ausgabe der Statusinformationen.
-						 * Für die eigentliche Datenübertragung unwichtig.
-						 */
-						if(System.currentTimeMillis()-lnPerfTime>lnPrintInfo) {
-							long lnFileSize = poFile.getFileSize()/1000;
-							long lnFileSizeDl = lnBytesReaded/1000;
-							double ln100 = 100;
-							double lnFileSizeF = lnFileSize;
-							double lnFileSizeDlF = lnFileSizeDl;
-							double lnPercentDone = (ln100/lnFileSizeF)*lnFileSizeDlF;
-							
-							double lnKbs = lnPerfBytes/(lnPrintInfo/1000);
-							Logfile.Write("["+String.format("%6.2f",lnPercentDone)+"%]"+String.format("%9.2f", lnKbs/1024) + "Kb/s, "+poFile.getFileName()); // + "("+lnFileSizeDlF+"/"+lnFileSizeF+")"); 
-							lnPerfTime = System.currentTimeMillis();
-							lnPerfBytes = 0;
-						}
-						break;
-					case 1:
-						lnChunkSize = loChunkReader.readInt();
-						loChunkReader.read(laTemp,0,3);
-						//System.out.println("[1???] Read MKV Chunk "+lnChunkSize+" Bytes "+GetHex(laTemp,3));
-						loFile = loTs;
-						break;						
-					case 2:
-						lnChunkSize = loChunkReader.readInt();
-						loChunkReader.read(laTemp,0,3);
-						//System.out.println("[2???] Read DESC Chunk "+lnChunkSize+" Bytes "+GetHex(laTemp,3));
-						loFile = null;
-						break;
-					case -7:
-						lnChunkSize = 0;
-						Logfile.Write("[BUSY] Recording or Replay in Progress");
-						loFile = null;
-						break;
-					case -17:
-						lnChunkSize = 0;
-						Logfile.Write("[CONN] Connection Problems");
-						break;
-					case (byte) 0xff:
-						Logfile.Write("TRANSFER COMPLETE");
-						write(Header.PT_ACK);
-						Unlock();
-						if(lbPostCopyAction) {
-							PostCopy loPostCopy = new PostCopy(lcPostCopyAction, poFile, pcDstFile, this);
-							loPostCopy.start();
-						}
-						return true;
-					default:
-						Logfile.Write("[UNKNOWN TYPE "+lbChunkType+"]");
-						Unlock();
-						return false;
-					}
-				}
-				if(lnChunkSize>0) {					
-					lnReadSize = loSocketRead.read(laBuffer, 0, lnChunkSize>laBuffer.length ? laBuffer.length : lnChunkSize );
-					if(lnReadSize<=0) {
-						System.out.println("No Data, Bad Connection "+lnReadSize + "("+lnChunkSize+")");
-					}
+				switch(lbChunkType) { 
+				case 0: //Data TS Chunk
+					lnChunkSize = readint();
+					readbyte(laTemp);
+					if(laBuffer.length<lnChunkSize)
+						laBuffer = new byte[lnChunkSize];
 					
-					if(lnReadSize>0) {
-						if(loNextFile!=null) {
-							loFile = loNextFile;
-							loNextFile = null;
-						}
-						if(loFile!=null)
-							loFile.write(laBuffer,0,lnReadSize);
-						
-						lnPerfBytes+=lnReadSize;
-						lnBytesReaded+=lnReadSize;
-						lnChunkSize = lnChunkSize - lnReadSize;
+					readbyte(laBuffer,0,lnChunkSize);					
+					loTs.write(laBuffer,0,lnChunkSize);
+					
+					lnPerfBytes+=lnChunkSize;
+					lnBytesReaded+=lnChunkSize;
+					if(System.currentTimeMillis()-lnPerfTime>lnPrintInfo) {
+						long lnFileSize = poFile.getFileSize()/1000;
+						long lnFileSizeDl = lnBytesReaded/1000;
+						double ln100 = 100;
+						double lnFileSizeF = lnFileSize;
+						double lnFileSizeDlF = lnFileSizeDl;
+						double lnPercentDone = (ln100/lnFileSizeF)*lnFileSizeDlF;
+						double lnKbs = lnPerfBytes/(lnPrintInfo/1000);
+						Logfile.Write("["+String.format("%6.2f",lnPercentDone)+"%]"+String.format("%9.2f", lnKbs/1024) + "Kb/s, "+poFile.getFileName()); // + "("+lnFileSizeDlF+"/"+lnFileSizeF+")"); 
+						lnPerfTime = System.currentTimeMillis();
+						lnPerfBytes = 0;
 					}
-				} else {
-					Logfile.Write("NULL DATA");
-					try {
-						Thread.sleep(1000);
-					} catch (InterruptedException e) {
-						e.printStackTrace();
+					break;
+				case 1:
+					lnChunkSize = readint();
+					readbyte(laTemp);					
+					laBuffer = new byte[lnChunkSize];
+					readbyte(laBuffer);
+					break;
+				case 2:
+					lnChunkSize = readint();
+					readbyte(laTemp);					
+					laBuffer = new byte[lnChunkSize];
+					readbyte(laBuffer);	
+					break;
+				case -7:
+					Logfile.Write("[BUSY] Recording or Replay in Progress");
+					break;
+				case (byte) 0xff:
+					ack();
+					if(lbPostCopyAction) {
+						PostCopy loPostCopy = new PostCopy(lcPostCopyAction, poFile, pcDstFile, this);
+						loPostCopy.start();
 					}
+					lbRead = false;
+					break;
+				default:
+					throw new Exception("Unknown Chunk Type " + lbChunkType);
 				}
-			}
+			} while(lbRead);			
 			Logfile.Write("Transmition Complete");
 		} catch (IOException e) {
 			e.printStackTrace();
-		}		
-		Unlock();		
-		return false;
+		} catch (Exception e) {
+			e.printStackTrace();
+		} finally {
+			Unlock();
+		}
+		return true;
 	}
 
 	/*
@@ -501,8 +424,7 @@ public class Processor {
 			loCommand.writeByte(0x17);
 			loCommand.writeShort(poFile.getRecNo());
 			write(loLowLevelCommand.toByteArray());
-			DataInputStream loResponse = readdata();			
-			lbResponse = loResponse.readByte();
+			lbResponse = readbyte();
 			if(lbResponse==1)
 				lbOk = true;
 			else

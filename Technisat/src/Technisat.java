@@ -392,7 +392,6 @@ public class Technisat {
 		try {
 			Logfile.Write("Connecting "+pcHost);			
 			m_oSocket = new Socket(pcHost, 2376);
-			m_oSocket.setTcpNoDelay(true);
 			m_oSocket.setSoTimeout(1000);
 			m_oSocket.setReceiveBufferSize((1024*1024)*32);
 			m_oRead = m_oSocket.getInputStream();
