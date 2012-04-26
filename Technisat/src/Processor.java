@@ -175,9 +175,10 @@ public class Processor {
 		String lcLang = "";
 		write(Header.PT_GETSYSINFO);
 		try {
-			byte[] laFlags = new byte[4];
+			byte[] laFlags = new byte[5];
 			readbyte(laFlags);
-			lcLang = readstring();
+			byte[] laLang = new byte[3];
+			readbyte(laLang);
 			lcName = readstring();
 			ack();
 		} catch (IOException e) {
