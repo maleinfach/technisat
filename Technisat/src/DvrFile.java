@@ -1,13 +1,14 @@
 import java.text.SimpleDateFormat;
 import java.util.Date;
 
-public class DvrFile {
-	public DvrFile(String pcFileName, long pnFileSize, short pnIndex, byte pbType, Date pdDate) {
+public class DvrFile {	
+	public DvrFile(DvrDirectory poParent, String pcFileName, long pnFileSize, short pnIndex, byte pbType, Date pdDate) {
 		m_cFileName = pcFileName;
 		m_nFileSize = pnFileSize;
 		m_nIndex = pnIndex;
 		m_nType = pbType;
 		m_dDate = pdDate;
+		m_oParent = poParent;
 	}
 	public String toString() {
 		SimpleDateFormat loForm = new SimpleDateFormat("yyyy-MM-dd HH-mm-ss");
@@ -27,6 +28,7 @@ public class DvrFile {
 	public short getIndex() {
 		return m_nIndex;
 	}
+	DvrDirectory m_oParent;
 	String m_cFileName;
 	long m_nFileSize;
 	short m_nIndex;

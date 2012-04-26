@@ -215,23 +215,24 @@ public class Processor {
 		readbyte(laSkip);
 	}	
 	
-	public DvrDirectory GetDir(String pcDir) {
-		DvrDirectory loDir = new DvrDirectory();
+	public void OpenDir(DvrDirectory poDir) {
+		if(poDir.m_bIsOpen)
+			return;
+
 		Lock();
 		try {		
-			Calendar loCalendar = Calendar.getInstance(TimeZone.getDefault());
-			
+			Calendar loCalendar = Calendar.getInstance(TimeZone.getDefault());			
 			byte[] laGetDir = new byte[] //Command
 				{
 					Header.PT_GETDIR,
 					0,
-					(byte) (pcDir==null ? 0 : 1)
+					(byte) (poDir.m_oParent==null ? 0 : 1)
 				};
 			write(laGetDir); //Send
 			readack();
 			
-			if(pcDir!=null) {
-				write(pcDir); //Directory setzen hier weiÃŸ ich nicht obs in zukunft noch probleme mit dem Zeichensatz gibt		
+			if(poDir.m_oParent!=null) {
+				write(poDir.m_cRemoteName);		
 				readbyte();
 				ping();
 			}
@@ -252,32 +253,33 @@ public class Processor {
 				byte lbIsDir = 0;
 				switch(lbType) {
 				case 0: //Directory
-					lbIsDir = readbyte(); //Nicht sicher
-					loDir.m_oDirectorys.add(new DvrDirectory(readstring()));
+					lbIsDir = readbyte();
+					lcFileName = readstring();
+					poDir.m_oDirectorys.add(new DvrDirectory(poDir, lcFileName, lcFileName, null));
 					break;
 				case 1: //MP2
 					lcFileName = readstring();
 					lnSize = readlong();
 					lnTimeStamp = readint();
 					loCalendar.add(Calendar.SECOND, lnTimeStamp);
-					loDir.m_oFiles.add( new DvrFile(lcFileName, lnSize, (short)loDir.m_oFiles.size(), lbType, loCalendar.getTime()));
+					poDir.m_oFiles.add( new DvrFile(poDir, lcFileName, lnSize, (short)poDir.m_oFiles.size(), lbType, loCalendar.getTime()));
 					break;
 				case 3: //TS Radio
 				case 4: //TS File Record SD Quality
 				case 7: //TS File Record HD Quality
-					lbIsDir = readbyte(); //Nicht sicher
+					lbIsDir = readbyte();
 					lnIndex = readbyte();
 					lcFileName = readstring();
 					lnSize = readlong();
 					lnTimeStamp = readint();
 					loCalendar.add(Calendar.SECOND, lnTimeStamp);
-					loDir.m_oFiles.add( new DvrFile(lcFileName, lnSize, lnIndex, lbType, loCalendar.getTime()));
+					poDir.m_oFiles.add( new DvrFile(poDir, lcFileName, lnSize, lnIndex, lbType, loCalendar.getTime()));
 					break;
 				case 9: //USB Memory Stick
-					lbIsDir = readbyte(); //Nicht sicher
+					lbIsDir = readbyte();
 					String lcDescription = readstring();
 					String lcName = readstring();
-					loDir.m_oDirectorys.add(new DvrDirectory(lcName, lcDescription));
+					poDir.m_oDirectorys.add(new DvrDirectory(poDir, lcName, lcName.substring(1), lcDescription));
 					break;
 				default:
 					throw new IOException("Unknown RecordType " + lbType);
@@ -286,11 +288,10 @@ public class Processor {
 			}
 		} catch (IOException e) {
 			e.printStackTrace();
-			loDir = null;
 		} finally {
 			Unlock();
-		}		
-		return loDir;
+		}
+		poDir.m_bIsOpen=true;
 	}
 	
 	/*
@@ -450,7 +451,7 @@ public class Processor {
 		byte[] laBuffer = null;
 		write(new byte[] {Header.PT_GETFILE_BYNAME,0,1,0,0,0,0,0,0,0,0} );
 		readbyte();
-		write(new String("music").getBytes("CP1252"));
+		write(poFile.m_oParent.m_cRemoteName.getBytes("CP1252"));
 		readbyte();
 		ping();
 		write(poFile.getFileName().getBytes("CP1252"));

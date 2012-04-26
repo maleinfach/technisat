@@ -25,12 +25,12 @@ public class Technisat {
 
 	/**
 	 * @param args
-	 */
-	private String m_cPath;
-	
-	private DvrDirectory m_oDirectory;
-
+	 */		
 	private String m_cReceiver = "";
+
+	private DvrDirectory m_oDirectory = null;
+	
+	private DvrDirectory m_oRootDirectory = null;
 	
 	public static void main(String[] args) throws Exception {
 		Technisat loTech = new Technisat();
@@ -63,29 +63,23 @@ public class Technisat {
 	
 	public boolean Cd(String pcDir) throws IOException {
 		if(IsConnected()) {
-			DvrDirectory loDir = null;
 			if(pcDir.equals("/")) {
-				loDir = m_oProcessor.GetDir(null);
-				if(loDir!=null) {
-					m_cPath=pcDir;
-					m_oDirectory = loDir;
-					return true;
-				}
+				if(m_oRootDirectory==null)
+					m_oRootDirectory = new DvrDirectory(null, "", "", "");
+				m_oDirectory = m_oRootDirectory;
 			} else {
 				if(m_oDirectory.DirExist(pcDir)) {
-					loDir = m_oProcessor.GetDir(pcDir);
-					if(loDir!=null) {
-						m_cPath="/"+pcDir+"/";
-						m_oDirectory = loDir;
-						return true;
-					}
+					if(pcDir.equals(".."))
+						m_oDirectory = m_oDirectory.m_oParent;
+					else
+						m_oDirectory = m_oDirectory.GetSubDirectory(pcDir);			
 				} else {
 					System.out.println("Unknown Directory "+pcDir);
-					return true;
 				}
 			}
+			m_oProcessor.OpenDir(m_oDirectory);			
 		}
-		return false;
+		return true;
 	}
 	
 	private void Shell(File poStartScript) {		
@@ -143,9 +137,9 @@ public class Technisat {
 		
 		while(lbReadCommand) {
 			if(m_cReceiver.equals(""))
-				System.out.print("Technisat "+m_cPath+"> ");
+				System.out.print("Technisat "+m_oDirectory.GetFullPath()+"> ");
 			else
-				System.out.print(m_cReceiver+" "+m_cPath+"> ");
+				System.out.print(m_cReceiver+" "+m_oDirectory.GetFullPath()+"> ");
 			try {
 				lcCommand = loShell.readLine();
 				if(!Execute(lcCommand))
@@ -157,7 +151,7 @@ public class Technisat {
 	}
 	
 	private DvrDirectory FilterDir(DvrDirectory poDir, String pcFilter) {
-		DvrDirectory loResponse = new DvrDirectory();
+		DvrDirectory loResponse = new DvrDirectory(poDir);
 		Pattern loPattern = Pattern.compile("^"+pcFilter.replace("*", ".*")+"$", Pattern.CASE_INSENSITIVE);
 		ListIterator<DvrFile> loIt = poDir.m_oFiles.listIterator();
 		while(loIt.hasNext()) {
@@ -169,12 +163,12 @@ public class Technisat {
 		}
 		ListIterator<DvrDirectory> loDirIt = poDir.m_oDirectorys.listIterator();
 		while(loDirIt.hasNext()) {
-			DvrDirectory loDir = loDirIt.next();
-			Matcher loMatcher = loPattern.matcher(loDir.m_cName);
+			DvrDirectory loFile = loDirIt.next();
+			Matcher loMatcher = loPattern.matcher(loFile.m_cDisplayName);
 			if(loMatcher.matches()) {
-				loResponse.m_oDirectorys.add(loDir);
+				loResponse.m_oDirectorys.add(loFile);
 			}
-		}
+		}		
 		return loResponse;
 	}
 	
@@ -188,10 +182,10 @@ public class Technisat {
 		 * Try Matching a Single Rec by Record Number
 		 */
 		if(laMatches!=null) {
-			loFilterDir = new DvrDirectory();
+			loFilterDir = new DvrDirectory(poDirectory);
 			DvrFile loSingleRec = poDirectory.GetFileByRecNo(Integer.parseInt(laMatches[0]));
 			if(loSingleRec!=null) {
-				loFilterDir = new DvrDirectory();
+				loFilterDir = new DvrDirectory(poDirectory);
 				loFilterDir.m_oFiles.add(loSingleRec);
 			}
 		} else {
