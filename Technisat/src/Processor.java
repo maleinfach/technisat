@@ -232,6 +232,10 @@ public class Processor {
 			}
 		
 			short lnAnzElements = readshort();
+			short lnIndex = 0;
+			String lcFileName = "";
+			long lnSize = 0;
+			int lnTimeStamp = 0;
 			while(lnAnzElements>0) {
 				/*
 				 * Die Technisat Zeitstempel sind irgendwie die anzahl der Sekunden
@@ -245,12 +249,13 @@ public class Processor {
 				case 0: //Directory
 					loDir.m_oDirectorys.add(new DvrDirectory(readstring()));
 					break;
+				case 3: //Radio
 				case 4: //File Record SD Quality
 				case 7: //File Record HD Quality
-					short lnIndex = readbyte();
-					String lcFileName = readstring();
-					long lnSize = readlong();
-					int lnTimeStamp = readint();
+					lnIndex = readbyte();
+					lcFileName = readstring();
+					lnSize = readlong();
+					lnTimeStamp = readint();
 					loCalendar.add(Calendar.SECOND, lnTimeStamp);
 					loDir.m_oFiles.add( new DvrFile(lcFileName, lnSize, lnIndex, lbType, loCalendar.getTime()));
 					break;
@@ -405,6 +410,8 @@ public class Processor {
 				}
 			} while(lbRead);			
 			Logfile.Write("Transmition Complete");
+			loTs.flush();
+			loTs.close();
 		} catch (IOException e) {
 			e.printStackTrace();
 		} catch (Exception e) {
