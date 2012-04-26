@@ -7,8 +7,8 @@ import java.util.Vector;
 public class DvrDirectory {
 	public Vector<DvrDirectory> m_oDirectorys = new Vector<DvrDirectory>();	
 	public Vector<DvrFile> m_oFiles = new Vector<DvrFile>();
-	public String m_cName = "";
-	public String m_cDescription = "";
+	public String m_cName = null ;
+	public String m_cDescription = null;
 	
 	public DvrDirectory(String pcName, String pcDescription) {
 		m_cName=pcName;
@@ -24,7 +24,10 @@ public class DvrDirectory {
 	}
 	
 	public String toString() {
-		return m_cName;
+		if(m_cDescription!=null)
+			return m_cName + " ("+m_cDescription+")";
+		else
+			return m_cName;
 	}
 	
 	public DvrFile GetFileByRecNo(int pnRecNo) {

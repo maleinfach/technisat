@@ -254,6 +254,11 @@ public class Processor {
 					loCalendar.add(Calendar.SECOND, lnTimeStamp);
 					loDir.m_oFiles.add( new DvrFile(lcFileName, lnSize, lnIndex, lbType, loCalendar.getTime()));
 					break;
+				case 9: //USB Memory Stick
+					String lcDescription = readstring();
+					String lcName = readstring();
+					loDir.m_oDirectorys.add(new DvrDirectory(lcName, lcDescription));
+					break;
 				default:
 					throw new IOException("Unknown RecordType " + lbType);
 				}
