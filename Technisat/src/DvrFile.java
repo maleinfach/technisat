@@ -50,6 +50,11 @@ public class DvrFile {
 		}
 		lcFileName = loForm.format(m_dDate) + " " + lcFileName;
 		switch(m_nType) {
+		case 1:
+			break;
+		case 3:
+			lcFileName+=".ts";
+			break;
 		case 4:
 			lcFileName+=".ts";
 			break;

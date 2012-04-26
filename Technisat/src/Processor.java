@@ -210,6 +210,11 @@ public class Processor {
 			return new String(laField, "CP1252");
 	}
 	
+	private void readskip(int i) {
+		byte[] laSkip = new byte[i];
+		readbyte(laSkip);
+	}	
+	
 	public DvrDirectory GetDir(String pcDir) {
 		DvrDirectory loDir = new DvrDirectory();
 		Lock();
@@ -244,14 +249,23 @@ public class Processor {
 				loCalendar.set(2000, 01, 01, 00, 00, 00);
 				loCalendar.add(Calendar.MONTH, -1);
 				byte lbType = readbyte();
-				byte lbIsDir = readbyte(); //Nicht sicher
+				byte lbIsDir = 0;
 				switch(lbType) {
 				case 0: //Directory
+					lbIsDir = readbyte(); //Nicht sicher
 					loDir.m_oDirectorys.add(new DvrDirectory(readstring()));
 					break;
-				case 3: //Radio
-				case 4: //File Record SD Quality
-				case 7: //File Record HD Quality
+				case 1: //MP2
+					lcFileName = readstring();
+					lnSize = readlong();
+					lnTimeStamp = readint();
+					loCalendar.add(Calendar.SECOND, lnTimeStamp);
+					loDir.m_oFiles.add( new DvrFile(lcFileName, lnSize, (short)loDir.m_oFiles.size(), lbType, loCalendar.getTime()));
+					break;
+				case 3: //TS Radio
+				case 4: //TS File Record SD Quality
+				case 7: //TS File Record HD Quality
+					lbIsDir = readbyte(); //Nicht sicher
 					lnIndex = readbyte();
 					lcFileName = readstring();
 					lnSize = readlong();
@@ -260,6 +274,7 @@ public class Processor {
 					loDir.m_oFiles.add( new DvrFile(lcFileName, lnSize, lnIndex, lbType, loCalendar.getTime()));
 					break;
 				case 9: //USB Memory Stick
+					lbIsDir = readbyte(); //Nicht sicher
 					String lcDescription = readstring();
 					String lcName = readstring();
 					loDir.m_oDirectorys.add(new DvrDirectory(lcName, lcDescription));
@@ -343,75 +358,79 @@ public class Processor {
 			Logfile.Write("Copy File " + poFile.getFileName() + " to "+pcDstFile);
 			loTs = new BufferedOutputStream(new FileOutputStream(loTsFile));			
 
-			loSocketWrite.writeByte(Header.PT_GETFILE); //Download Command;
-			loSocketWrite.writeShort(poFile.getIndex()); //File Index		
-			loSocketWrite.writeLong(0); //Start Position (maybe!!)
-			write(loSocketWriteLow.toByteArray()); // Send Message to DVR
-			
-			byte[] laFileInfo = new byte[25];
-			Logfile.Data("File Header", laFileInfo, laFileInfo.length);
-			readbyte(laFileInfo);
-			write(Header.PT_ACK);
-			byte[] laTemp = new byte[3];
-			do{		
-				byte lbChunkType = readbyte();
-				int lnChunkSize = 0;
-
-				switch(lbChunkType) { 
-				case 0: //Data TS Chunk
-					lnChunkSize = readint();
-					readbyte(laTemp);
-					if(laBuffer.length<lnChunkSize)
+			if(poFile.m_nType==1) {
+				readchunk_mp2(poFile, loTs);
+			} else {			
+				loSocketWrite.writeByte(Header.PT_GETFILE_BYRECNO); //Download Command;
+				loSocketWrite.writeShort(poFile.getIndex()); //File Index		
+				loSocketWrite.writeLong(0); //Start Position (maybe!!)
+				write(loSocketWriteLow.toByteArray()); // Send Message to DVR
+				
+				byte[] laFileInfo = new byte[25];
+				Logfile.Data("File Header", laFileInfo, laFileInfo.length);
+				readbyte(laFileInfo);
+				write(Header.PT_ACK);
+				byte[] laTemp = new byte[3];
+				do{		
+					byte lbChunkType = readbyte();
+					int lnChunkSize = 0;
+	
+					switch(lbChunkType) { 
+					case 0: //Data TS Chunk
+						lnChunkSize = readint();
+						readbyte(laTemp);
+						if(laBuffer.length<lnChunkSize)
+							laBuffer = new byte[lnChunkSize];
+						
+						readbyte(laBuffer,0,lnChunkSize);					
+						loTs.write(laBuffer,0,lnChunkSize);
+						
+						lnPerfBytes+=lnChunkSize;
+						lnBytesReaded+=lnChunkSize;
+						if(System.currentTimeMillis()-lnPerfTime>lnPrintInfo) {
+							long lnFileSize = poFile.getFileSize()/1000;
+							long lnFileSizeDl = lnBytesReaded/1000;
+							double ln100 = 100;
+							double lnFileSizeF = lnFileSize;
+							double lnFileSizeDlF = lnFileSizeDl;
+							double lnPercentDone = (ln100/lnFileSizeF)*lnFileSizeDlF;
+							double lnKbs = lnPerfBytes/(lnPrintInfo/1000);
+							Logfile.Write("["+String.format("%6.2f",lnPercentDone)+"%]"+String.format("%9.2f", lnKbs/1024) + "Kb/s, "+poFile.getFileName()); // + "("+lnFileSizeDlF+"/"+lnFileSizeF+")"); 
+							lnPerfTime = System.currentTimeMillis();
+							lnPerfBytes = 0;
+						}
+						break;
+					case 1:
+						lnChunkSize = readint();
+						readbyte(laTemp);					
 						laBuffer = new byte[lnChunkSize];
-					
-					readbyte(laBuffer,0,lnChunkSize);					
-					loTs.write(laBuffer,0,lnChunkSize);
-					
-					lnPerfBytes+=lnChunkSize;
-					lnBytesReaded+=lnChunkSize;
-					if(System.currentTimeMillis()-lnPerfTime>lnPrintInfo) {
-						long lnFileSize = poFile.getFileSize()/1000;
-						long lnFileSizeDl = lnBytesReaded/1000;
-						double ln100 = 100;
-						double lnFileSizeF = lnFileSize;
-						double lnFileSizeDlF = lnFileSizeDl;
-						double lnPercentDone = (ln100/lnFileSizeF)*lnFileSizeDlF;
-						double lnKbs = lnPerfBytes/(lnPrintInfo/1000);
-						Logfile.Write("["+String.format("%6.2f",lnPercentDone)+"%]"+String.format("%9.2f", lnKbs/1024) + "Kb/s, "+poFile.getFileName()); // + "("+lnFileSizeDlF+"/"+lnFileSizeF+")"); 
-						lnPerfTime = System.currentTimeMillis();
-						lnPerfBytes = 0;
+						readbyte(laBuffer);
+						break;
+					case 2:
+						lnChunkSize = readint();
+						readbyte(laTemp);					
+						laBuffer = new byte[lnChunkSize];
+						readbyte(laBuffer);	
+						break;
+					case -7:
+						Logfile.Write("[BUSY] Recording or Replay in Progress");
+						break;
+					case (byte) 0xff:
+						ack();
+						if(lbPostCopyAction) {
+							PostCopy loPostCopy = new PostCopy(lcPostCopyAction, poFile, pcDstFile, this);
+							loPostCopy.start();
+						}
+						lbRead = false;
+						break;
+					default:
+						throw new Exception("Unknown Chunk Type " + lbChunkType);
 					}
-					break;
-				case 1:
-					lnChunkSize = readint();
-					readbyte(laTemp);					
-					laBuffer = new byte[lnChunkSize];
-					readbyte(laBuffer);
-					break;
-				case 2:
-					lnChunkSize = readint();
-					readbyte(laTemp);					
-					laBuffer = new byte[lnChunkSize];
-					readbyte(laBuffer);	
-					break;
-				case -7:
-					Logfile.Write("[BUSY] Recording or Replay in Progress");
-					break;
-				case (byte) 0xff:
-					ack();
-					if(lbPostCopyAction) {
-						PostCopy loPostCopy = new PostCopy(lcPostCopyAction, poFile, pcDstFile, this);
-						loPostCopy.start();
-					}
-					lbRead = false;
-					break;
-				default:
-					throw new Exception("Unknown Chunk Type " + lbChunkType);
-				}
-			} while(lbRead);			
+				} while(lbRead);
+			}
 			Logfile.Write("Transmition Complete");
 			loTs.flush();
-			loTs.close();
+			loTs.close();			
 		} catch (IOException e) {
 			e.printStackTrace();
 		} catch (Exception e) {
@@ -420,6 +439,38 @@ public class Processor {
 			Unlock();
 		}
 		return true;
+	}
+	
+	private void readchunk_ts(OutputStream poWrite) {
+		
+	}
+	
+	private void readchunk_mp2(DvrFile poFile, OutputStream poWrite) throws IOException {
+		int lnChunkSize = 0, lnBytes = 0;
+		byte[] laBuffer = null;
+		write(new byte[] {Header.PT_GETFILE_BYNAME,0,1,0,0,0,0,0,0,0,0} );
+		readbyte();
+		write(new String("music").getBytes("CP1252"));
+		readbyte();
+		ping();
+		write(poFile.getFileName().getBytes("CP1252"));
+		readbyte();
+		int lnUnknown = readint();
+		int lnFileSize = readint();
+		int lnReadSize = 0;
+		lnChunkSize = readint();
+		laBuffer = new byte[lnChunkSize];
+		do{
+			if(readbyte()!=1)
+				throw new IOException("Unhandled Transfer Exception");
+			readskip(3);
+			
+			lnReadSize = lnFileSize - lnBytes > lnChunkSize ? lnChunkSize : lnFileSize - lnBytes;			
+			readbyte(laBuffer,0,lnReadSize);
+			poWrite.write(laBuffer,0,lnReadSize);
+			lnBytes+=lnChunkSize;
+		} while(lnBytes<lnFileSize);		
+		readbyte(laBuffer,0,lnChunkSize-lnReadSize);
 	}
 
 	/*
@@ -551,5 +602,9 @@ public class Processor {
 			}
 			
 		}
+	}
+	
+	private class DataChunk {
+		
 	}
 }
