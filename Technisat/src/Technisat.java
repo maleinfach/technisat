@@ -136,10 +136,12 @@ public class Technisat {
 		}
 		
 		while(lbReadCommand) {
+			String lcPath = m_oDirectory == null ? "" : " " + m_oDirectory.GetFullPath();
 			if(m_cReceiver.equals(""))
-				System.out.print("Technisat "+m_oDirectory.GetFullPath()+"> ");
+				System.out.print("Technisat"+lcPath+"> ");
 			else
-				System.out.print(m_cReceiver+" "+m_oDirectory.GetFullPath()+"> ");
+				System.out.print(m_cReceiver+lcPath+"> ");
+			
 			try {
 				lcCommand = loShell.readLine();
 				if(!Execute(lcCommand))
