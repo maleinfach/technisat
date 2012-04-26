@@ -201,13 +201,15 @@ public class Processor {
 	
 	private String readstring() throws IOException {
 		byte lnFieldLen = readbyte();
-		byte[] laField = new byte[lnFieldLen & 0xff];
-		readbyte(laField);
-		
-		if(laField[0]==0x05)
-			return new String(laField, 1, laField.length-1, "CP1252");
-		else
-			return new String(laField, "CP1252");
+		if(lnFieldLen>0) {
+			byte[] laField = new byte[lnFieldLen & 0xff];
+			readbyte(laField);		
+			if(laField[0]==0x05)
+				return new String(laField, 1, laField.length-1, "CP1252");
+			else
+				return new String(laField, "CP1252");
+		} else
+			return "";
 	}
 	
 	private void readskip(int i) {
