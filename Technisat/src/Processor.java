@@ -260,12 +260,12 @@ public class Processor {
 					lcFileName = readstring();
 					poDir.m_oDirectorys.add(new DvrDirectory(poDir, lcFileName, lcFileName, null));
 					break;
-				case 1: //MP2
+				case 1: //Binary
 					lcFileName = readstring();
 					lnSize = readlong();
 					lnTimeStamp = readint();
 					loCalendar.add(Calendar.SECOND, lnTimeStamp);
-					poDir.m_oFiles.add( new DvrFile(poDir, lcFileName, lnSize, (short)poDir.m_oFiles.size(), lbType, loCalendar.getTime()));
+					poDir.m_oFiles.add( new DvrFile(poDir, lcFileName, lnSize, (short)-1, lbType, loCalendar.getTime()));
 					break;
 				case 3: //TS Radio
 				case 4: //TS File Record SD Quality
@@ -313,6 +313,7 @@ public class Processor {
 		boolean lbStartDownload = false;
 		boolean lbPostCopyAction = false;
 		long lnPrintInfo = 1000;
+		boolean lbReturn = false;
 		
 		if(lcPostCopyAction.equals("")) {
 			Lock();
@@ -363,7 +364,7 @@ public class Processor {
 			loTs = new BufferedOutputStream(new FileOutputStream(loTsFile));			
 
 			if(poFile.m_nType==1) {
-				readchunk_mp2(poFile, loTs);
+				readstream_singlepart(poFile, loTs);
 			} else {			
 				loSocketWrite.writeByte(Header.PT_GETFILE_BYRECNO); //Download Command;
 				loSocketWrite.writeShort(poFile.getIndex()); //File Index		
@@ -432,9 +433,10 @@ public class Processor {
 					}
 				} while(lbRead);
 			}
-			Logfile.Write("Transmition Complete");
+			Logfile.Write("Transfer Complete");
 			loTs.flush();
-			loTs.close();			
+			loTs.close();
+			lbReturn = true;
 		} catch (IOException e) {
 			e.printStackTrace();
 		} catch (Exception e) {
@@ -442,18 +444,29 @@ public class Processor {
 		} finally {
 			Unlock();
 		}
-		return true;
+		return lbReturn;
 	}
 	
-	private void readchunk_ts(OutputStream poWrite) {
+	private void readstream(
+			DvrFile poFile) {
 		
 	}
 	
-	private void readchunk_mp2(DvrFile poFile, OutputStream poWrite) throws IOException {
+	/**
+	 * @param DvrFile poFile
+	 * @param OutputStream poWrite
+	 * Lese Datenströme im Single File Streaming
+	 * Format mit statischer Chunk größe
+	 */	
+	private void readstream_singlepart(
+			DvrFile poFile, 
+			OutputStream poWrite
+			) throws IOException {
 		int lnChunkSize = 0, lnBytes = 0;
 		byte[] laBuffer = null;
+		byte lbResponse = 0;
 		write(new byte[] {Header.PT_GETFILE_BYNAME,0,1,0,0,0,0,0,0,0,0} );
-		readbyte();
+		lbResponse = readbyte();
 		write(poFile.m_oParent.m_cRemoteName.getBytes("CP1252"));
 		readbyte();
 		ping();
@@ -476,11 +489,39 @@ public class Processor {
 		} while(lnBytes<lnFileSize);		
 		readbyte(laBuffer,0,lnChunkSize-lnReadSize);
 	}
+	/**
+	 * @param DvrFile poFile
+	 * @param OutputStream[] paWrite
+	 * Lese Datenströme im Multi Part Streaming
+	 * Format vom mit dynamischer Chunk größe.
+	 */
+	private void readstream_multipart(
+			DvrFile poFile,
+			OutputStream[] paWrite
+			)
+	{
+		
+	}
+	
+	private void accuirethread() {
+		String lcPostCopyAction = Props.Get("POSTCOPYSCRIPT");
+		int lnPostCopyThreads = Integer.parseInt(Props.Get("POSTCOPYTHREADCOUNT"));
+		
+	}
+	
+	private void releasethread() {
+		
+	}
 
 	/*
 	 * Remove a File from the Receiver FS
 	 */
-	public boolean Rm(DvrFile poFile) {
+	public boolean Rm(DvrFile poFile) throws Exception {
+		if(!poFile.isRecNo()) {
+			System.out.println("File has no unique Record Number (Not implemented)");
+			return false;
+		}
+			
 		Lock();
 		Logfile.Write("Removing File " + poFile);
 		boolean lbOk = false;
@@ -492,8 +533,10 @@ public class Processor {
 			loCommand.writeShort(poFile.getRecNo());
 			write(loLowLevelCommand.toByteArray());
 			lbResponse = readbyte();
-			if(lbResponse==1)
+			if(lbResponse==1) {
 				lbOk = true;
+				poFile.m_oParent.m_oFiles.remove(poFile);
+			}
 			else
 				System.out.println("Error in Receiver Response (RM Command) " + lbResponse);
 		} catch (IOException e) {

@@ -321,8 +321,11 @@ public class Technisat {
 			ListIterator<DvrFile> loFileIter = loRmColl.m_oFiles.listIterator();
 			while(loFileIter.hasNext()) {
 				DvrFile loFile = loFileIter.next();
-				m_oProcessor.Rm(loFile);
-				m_oDirectory.m_oFiles.remove(loFile);				
+				try {
+					m_oProcessor.Rm(loFile);
+				} catch (Exception e) {
+					e.printStackTrace();
+				}
 			}
 			return true;
 		}
@@ -341,8 +344,12 @@ public class Technisat {
 				while(loFileIter.hasNext()) {
 					DvrFile loFile = loFileIter.next();
 					if(m_oProcessor.Download(loFile,laCommand[0])) {
-						m_oProcessor.Rm(loFile);
-						m_oDirectory.m_oFiles.remove(loFile);
+						try {
+							m_oProcessor.Rm(loFile);							
+						} catch (Exception e) {
+							// TODO Auto-generated catch block
+							e.printStackTrace();
+						}						
 					}
 				}
 				return true;

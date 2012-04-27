@@ -12,18 +12,23 @@ public class DvrFile {
 	}
 	public String toString() {
 		SimpleDateFormat loForm = new SimpleDateFormat("yyyy-MM-dd HH-mm-ss");
-		//System.out.println(m_cFileName);
-		return String.format("%4d", m_nIndex) +" "+ getTypeString() + " "+ String.format("%5d",m_nFileSize/1024/1024)+"MB " + loForm.format(m_dDate) + " " + m_cFileName;
-		//return m_cFileName;
+		return
+					(m_nIndex>=0 ? String.format("%4d", m_nIndex) : "  --") + " " + 
+					getTypeString() + " "+ 
+					String.format("%5d",m_nFileSize/1024/1024)+"MB " + 
+					loForm.format(m_dDate) + " " + 
+					m_cFileName;
 	}
 	public String getTypeString() {
 		switch(m_nType) {
+		case 1:
+			return "BIN  ";
 		case 4:
-			return "SD";
+			return "TS/SD";
 		case 7:
-			return "HD";
+			return "TS/HD";
 		}
-		return "??";
+		return "     ";
 	}
 	public short getIndex() {
 		return m_nIndex;
@@ -55,13 +60,9 @@ public class DvrFile {
 		case 1:
 			break;
 		case 3:
-			lcFileName+=".ts";
-			break;
 		case 4:
-			lcFileName+=".ts";
-			break;
 		case 7:
-			lcFileName+=".ts4";
+			lcFileName+=".ts";
 			break;
 		default:
 			lcFileName+=".unknown";
@@ -69,8 +70,12 @@ public class DvrFile {
 		}
 		return lcFileName;
 	}
-	public short getRecNo() {
-		// TODO Auto-generated method stub
+	public short getRecNo() throws Exception {
+		if(m_nIndex<0)
+			throw new Exception("File has no Record Number");
 		return m_nIndex;
+	}
+	public boolean isRecNo() {
+		return m_nIndex>0;
 	}
 }
