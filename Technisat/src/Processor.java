@@ -35,36 +35,28 @@ public class Processor {
 		m_oIdle = new Idle(this);
 		m_oIdle.start();
 	}
-	
-	private int _read(int pnRetry, int pnMaxRetry, byte[] paBuffer, int pnOffSet, int pnCount) {
-		int lnBytesReaded=0;
-		try {
-			lnBytesReaded = _read(paBuffer, pnOffSet, pnCount);
-		} catch (IOException e) {
-			if(pnRetry<pnMaxRetry)
-				return _read(pnRetry+1, pnMaxRetry, paBuffer, pnOffSet, pnCount);
-			else {
-				System.out.println("Socket Error " + e.getMessage());
-				return -1;
-			}
-		}
-    	return lnBytesReaded;
-	}
-    
+   
     private int _read(
     	byte[] paBuffer, int pnOffSet, int pnCount
     	) throws IOException {
-      int lnReadPos = 0, lnBytes;
+      int lnReadPos = 0, lnBytes = 0, lnReadTimeout= 0 ;
       do{
     	  /*
     	   * read data from the socket while the readed byte
     	   * count is lower than pnMinBytes
     	   */
-    	  lnBytes = m_oRead.read(paBuffer, pnOffSet+lnReadPos, pnCount-lnReadPos );
-    	  if(lnBytes>=0)
-    		  lnReadPos+=lnBytes;
-    	  else
-    		  throw new IOException("Socket IO Exception "+lnBytes+ "("+lnReadPos+" of " + pnCount + " bytes readed)");
+    	  try {
+    		  lnBytes = m_oRead.read(paBuffer, pnOffSet+lnReadPos, pnCount-lnReadPos );
+        	  if(lnBytes>=0)
+        		  lnReadPos+=lnBytes;
+        	  else
+        		  throw new IOException("Socket IO Exception "+lnBytes+ "("+lnReadPos+" of " + pnCount + " bytes readed, No Data)");    		  
+    	  }
+    	  catch(IOException e) {
+    		  lnReadTimeout++;
+    		  if(lnReadTimeout>30)
+    			  throw e;
+    	  }
       } while(pnCount>lnReadPos);
       Logfile.Data("RxD", paBuffer, lnReadPos);
       return lnReadPos;
@@ -72,7 +64,7 @@ public class Processor {
     
     private boolean readack() throws IOException {
     	byte[] laBuffer = new byte[1];
-    	if(_read(0, 32, laBuffer, 0, 1)>0) {
+    	if(_read(laBuffer, 0, 1)>0) {
     		switch(laBuffer[0]) {
     		case 1:
     			return true;
@@ -98,24 +90,24 @@ public class Processor {
     
     private byte readbyte() throws IOException {
     	byte[] laBuffer = new byte[1];
-    	int lnBytes = _read(0, 8, laBuffer, 0, 1);
+    	int lnBytes = _read(laBuffer, 0, 1);
     	if(lnBytes>0)
     		return laBuffer[0];
     	throw new IOException("No Data");
     }
     
-    private void readbyte(byte[] paData) {    	
+    private void readbyte(byte[] paData) throws IOException {    	
     	readbyte(paData, 0, paData.length);
     }
     
 
-	private void readbyte(byte[] paBuffer, int pnOffSet, int pnCount) {
-		_read(0, 8, paBuffer, pnOffSet, pnCount);
+	private void readbyte(byte[] paBuffer, int pnOffSet, int pnCount) throws IOException {
+		_read(paBuffer, pnOffSet, pnCount);
 	}    
  
     private short readshort() throws IOException {
     	byte[] laShort = new byte[2];
-    	int lnBytes = _read(0, 8, laShort, 0, 2);
+    	int lnBytes = _read(laShort, 0, 2);
     	if(lnBytes==2) {
     		return (new DataInputStream((new ByteArrayInputStream(laShort)))).readShort();
     	}
@@ -124,7 +116,7 @@ public class Processor {
 
     private int readint() throws IOException {
     	byte[] laShort = new byte[4];
-    	int lnBytes = _read(0, 8, laShort, 0, 4);
+    	int lnBytes = _read(laShort, 0, 4);
     	if(lnBytes==4) {
     		return (new DataInputStream((new ByteArrayInputStream(laShort)))).readInt();
     	}
@@ -133,7 +125,7 @@ public class Processor {
     
     private long readlong() throws IOException {
     	byte[] laShort = new byte[8];
-    	int lnBytes = _read(0, 8, laShort, 0, 8);
+    	int lnBytes = _read(laShort, 0, 8);
     	if(lnBytes==8) {
     		return (new DataInputStream((new ByteArrayInputStream(laShort)))).readLong();
     	}
@@ -213,7 +205,7 @@ public class Processor {
 			return "";
 	}
 	
-	private void readskip(int i) {
+	private void readskip(int i) throws IOException {
 		byte[] laSkip = new byte[i];
 		readbyte(laSkip);
 	}	
