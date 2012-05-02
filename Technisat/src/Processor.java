@@ -54,7 +54,7 @@ public class Processor {
     	  }
     	  catch(IOException e) {
     		  lnReadTimeout++;
-    		  if(lnReadTimeout>30)
+    		  if(lnReadTimeout>60)
     			  throw e;
     	  }
       } while(pnCount>lnReadPos);
@@ -216,7 +216,7 @@ public class Processor {
 
 		Lock();
 		try {		
-			Calendar loCalendar = Calendar.getInstance(TimeZone.getDefault());			
+			Calendar loCalendar = Calendar.getInstance(TimeZone.getTimeZone("GMT"));			
 			byte[] laGetDir = new byte[] //Command
 				{
 					Header.PT_GETDIR,
@@ -238,12 +238,7 @@ public class Processor {
 			long lnSize = 0;
 			int lnTimeStamp = 0;
 			while(lnAnzElements>0) {
-				/*
-				 * Die Technisat Zeitstempel sind irgendwie die anzahl der Sekunden
-				 * ab dem 1.1.2000 - 1 Monat oder so. Ganz komisch. 
-				 */
-				loCalendar.set(2000, 01, 01, 00, 00, 00);
-				loCalendar.add(Calendar.MONTH, -1);
+				loCalendar.set(1999, 12, 01, 00, 00, 00);
 				byte lbType = readbyte();
 				byte lbIsDir = 0;
 				switch(lbType) {
