@@ -101,8 +101,8 @@ public class Processor {
     }
     
 
-	private void readbyte(byte[] paBuffer, int pnOffSet, int pnCount) throws IOException {
-		_read(paBuffer, pnOffSet, pnCount);
+	private int readbyte(byte[] paBuffer, int pnOffSet, int pnCount) throws IOException {
+		return _read(paBuffer, pnOffSet, pnCount);
 	}    
  
     private short readshort() throws IOException {
@@ -299,7 +299,6 @@ public class Processor {
 		int lnPostCopyThreads = Integer.parseInt(Props.Get("POSTCOPYTHREADCOUNT"));
 		boolean lbStartDownload = false;
 		boolean lbPostCopyAction = false;
-		long lnPrintInfo = 1000;
 		boolean lbReturn = false;
 		
 		if(lcPostCopyAction.equals("")) {
@@ -321,37 +320,25 @@ public class Processor {
 				}
 			} while(!lbStartDownload);
 		}
-		
-		byte[] laBuffer = new byte[65536];
-		long lnPerfTime = System.currentTimeMillis();
-		long lnPerfBytes = 0;
 		/*
 		 * Socket Streams
 		 */
 		ByteArrayOutputStream loSocketWriteLow = new ByteArrayOutputStream();
-		DataOutputStream loSocketWrite = new DataOutputStream(loSocketWriteLow);		
-		
-		/*
-		 * File Streams
-		 */
-		File loTsFile = new File(pcDstFile);
-		if(loTsFile.exists()) {
-			if(Props.Get("SAFEITY").equals("1")) {
-				Logfile.Write("Error File "+pcDstFile+" already exists!");
-				Unlock();
-				return false;
-			}
-		}
-		BufferedOutputStream loTs = null;
-		boolean lbRead = true;		
-		long lnBytesReaded = 0;
-
+		DataOutputStream loSocketWrite = new DataOutputStream(loSocketWriteLow);
+		String laDstFiles[];
 		try {
 			Logfile.Write("Copy File " + poFile.getFileName() + " to "+pcDstFile);
-			loTs = new BufferedOutputStream(new FileOutputStream(loTsFile));			
-
+			
 			if(poFile.m_nType==1) {
-				readstream_singlepart(poFile, loTs);
+				write(new byte[] {Header.PT_GETFILE_BYNAME,0,1,0,0,0,0,0,0,0,0} );
+				readbyte();
+				write(poFile.m_oParent.m_cRemoteName.getBytes("CP1252"));
+				readbyte();
+				ping();
+				write(poFile.getFileName().getBytes("CP1252"));
+				readbyte();
+				laDstFiles = new String[] {pcDstFile};
+				readstream_singlepart(createdstfile(pcDstFile));
 			} else {			
 				loSocketWrite.writeByte(Header.PT_GETFILE_BYRECNO); //Download Command;
 				loSocketWrite.writeShort(poFile.getIndex()); //File Index		
@@ -361,73 +348,21 @@ public class Processor {
 				byte lbResponse = readbyte();
 				long lnFileSize = readlong();
 				byte lbFileCount = readbyte();								
-				String[] laFiles = new String[lbFileCount];
-				for(int i=0; i<laFiles.length; i++) {
+				BufferedOutputStream[] laWrite = new BufferedOutputStream[lbFileCount];
+				laDstFiles = new String[lbFileCount];
+				for(int i=0; i<laWrite.length; i++) {
 					byte lbFileNo = readbyte();
-					laFiles[lbFileNo] = readstring();
-				}
-				
+					laDstFiles[i] = pcDstFile+"."+readstring().toLowerCase();
+					laWrite[lbFileNo] = createdstfile(laDstFiles[i]);
+				}				
 				write(Header.PT_ACK);
-				byte[] laTemp = new byte[3];
-				do{		
-					byte lbChunkType = readbyte();
-					int lnChunkSize = 0;
-	
-					switch(lbChunkType) { 
-					case 0: //Data TS Chunk
-						lnChunkSize = readint();
-						readbyte(laTemp);
-						if(laBuffer.length<lnChunkSize)
-							laBuffer = new byte[lnChunkSize];
-						
-						readbyte(laBuffer,0,lnChunkSize);					
-						loTs.write(laBuffer,0,lnChunkSize);
-						
-						lnPerfBytes+=lnChunkSize;
-						lnBytesReaded+=lnChunkSize;
-						if(System.currentTimeMillis()-lnPerfTime>lnPrintInfo) {
-							long lnFileSizeDl = lnBytesReaded/1000;
-							double ln100 = 100;
-							double lnFileSizeF = lnFileSize;
-							double lnFileSizeDlF = lnFileSizeDl;
-							double lnPercentDone = (ln100/lnFileSizeF)*lnFileSizeDlF;
-							double lnKbs = lnPerfBytes/(lnPrintInfo/1000);
-							Logfile.Write("["+String.format("%6.2f",lnPercentDone)+"%]"+String.format("%9.2f", lnKbs/1024) + "Kb/s, "+poFile.getFileName()); // + "("+lnFileSizeDlF+"/"+lnFileSizeF+")"); 
-							lnPerfTime = System.currentTimeMillis();
-							lnPerfBytes = 0;
-						}
-						break;
-					case 1:
-						lnChunkSize = readint();
-						readbyte(laTemp);					
-						laBuffer = new byte[lnChunkSize];
-						readbyte(laBuffer);
-						break;
-					case 2:
-						lnChunkSize = readint();
-						readbyte(laTemp);					
-						laBuffer = new byte[lnChunkSize];
-						readbyte(laBuffer);	
-						break;
-					case -7:
-						Logfile.Write("[BUSY] Recording or Replay in Progress");
-						break;
-					case (byte) 0xff:
-						ack();
-						if(lbPostCopyAction) {
-							PostCopy loPostCopy = new PostCopy(lcPostCopyAction, poFile, pcDstFile, this);
-							loPostCopy.start();
-						}
-						lbRead = false;
-						break;
-					default:
-						throw new Exception("Unknown Chunk Type " + lbChunkType);
-					}
-				} while(lbRead);
+				readstream_multipart(laWrite);
 			}
 			Logfile.Write("Transfer Complete");
-			loTs.flush();
-			loTs.close();
+			if(lbPostCopyAction) {
+				PostCopy loPostCopy = new PostCopy(lcPostCopyAction, poFile, laDstFiles[0], this);
+				loPostCopy.start();
+			}
 			lbReturn = true;
 		} catch (IOException e) {
 			e.printStackTrace();
@@ -439,70 +374,94 @@ public class Processor {
 		return lbReturn;
 	}
 	
-	private void readstream(
-			DvrFile poFile) {
-		
-	}
-	
 	/**
 	 * @param DvrFile poFile
 	 * @param OutputStream poWrite
 	 * Lese Datenströme im Single File Streaming
 	 * Format mit statischer Chunk größe
+	 * @throws InterruptedException 
 	 */	
 	private void readstream_singlepart(
-			DvrFile poFile, 
-			OutputStream poWrite
-			) throws IOException {
+			BufferedOutputStream poWrite
+			) throws IOException, InterruptedException {
 		int lnChunkSize = 0, lnBytes = 0;
 		byte[] laBuffer = null;
-		byte lbResponse = 0;
-		write(new byte[] {Header.PT_GETFILE_BYNAME,0,1,0,0,0,0,0,0,0,0} );
-		lbResponse = readbyte();
-		write(poFile.m_oParent.m_cRemoteName.getBytes("CP1252"));
-		readbyte();
-		ping();
-		write(poFile.getFileName().getBytes("CP1252"));
-		readbyte();
+		byte lbRead = 0;		
 		int lnUnknown = readint();
 		int lnFileSize = readint();
 		int lnReadSize = 0;
 		lnChunkSize = readint();
 		laBuffer = new byte[lnChunkSize];
 		do{
-			if(readbyte()!=1)
-				throw new IOException("Unhandled Transfer Exception");
-			readskip(3);
-			
-			lnReadSize = lnFileSize - lnBytes > lnChunkSize ? lnChunkSize : lnFileSize - lnBytes;			
-			readbyte(laBuffer,0,lnReadSize);
-			poWrite.write(laBuffer,0,lnReadSize);
-			lnBytes+=lnChunkSize;
+			lbRead = readbyte();
+			if(lbRead>=0) {
+				readskip(3);			
+				lnReadSize = lnFileSize - lnBytes > lnChunkSize ? lnChunkSize : lnFileSize - lnBytes;			
+				readbyte(laBuffer,0,lnReadSize);
+				poWrite.write(laBuffer,0,lnReadSize);
+				lnBytes+=lnChunkSize;
+			} else
+				resumeread(lbRead);
 		} while(lnBytes<lnFileSize);		
 		readbyte(laBuffer,0,lnChunkSize-lnReadSize);
+		poWrite.close();
 	}
 	/**
 	 * @param DvrFile poFile
 	 * @param OutputStream[] paWrite
 	 * Lese Datenströme im Multi Part Streaming
 	 * Format vom mit dynamischer Chunk größe.
+	 * @throws InterruptedException 
 	 */
 	private void readstream_multipart(
-			DvrFile poFile,
-			OutputStream[] paWrite
-			)
+			BufferedOutputStream[] paWrite
+			) throws IOException, InterruptedException
 	{
-		
+		byte lbFileNo = 0;
+		int lnChunkSize = 0;
+		byte[] laBuffer = new byte[65536];
+		int lnRead = 0;
+		do{		
+			lbFileNo = readbyte();
+			if(lbFileNo>=0) {
+				lnChunkSize = readint();
+				readskip(3);
+				lnRead = readbyte(laBuffer, 0, lnChunkSize);
+				paWrite[lbFileNo].write(laBuffer,0,lnRead);
+			}
+		} while(resumeread(lbFileNo));
+		ack();
+		for(int i=0; i<paWrite.length; i++)
+			paWrite[i].close();
 	}
 	
-	private void accuirethread() {
-		String lcPostCopyAction = Props.Get("POSTCOPYSCRIPT");
-		int lnPostCopyThreads = Integer.parseInt(Props.Get("POSTCOPYTHREADCOUNT"));
-		
+	private BufferedOutputStream createdstfile(String pcDstFile) throws IOException {
+		File loTsFile = new File(pcDstFile);
+		if(loTsFile.exists()) {
+			if(Props.Get("SAFEITY").equals("1")) {
+				Logfile.Write("Error File "+pcDstFile+" already exists!");
+				throw new IOException("Error File "+pcDstFile+" already exists!");
+			}
+		}
+		FileOutputStream loFileWriter = new FileOutputStream(pcDstFile);
+		BufferedOutputStream loFastFileWriter = new BufferedOutputStream(loFileWriter);
+		return loFastFileWriter;
 	}
 	
-	private void releasethread() {
-		
+	private boolean resumeread(byte pbFlag) throws InterruptedException, IOException {
+		if(pbFlag>=0)
+			return true;
+		switch(pbFlag) {
+		case -4:
+		case -7:
+			Logfile.Write("Device is Busy!");
+			break;
+		case (byte) 0xff:
+			return false;
+		default:
+			throw new IOException("Unknown Protocol Flag " + pbFlag);
+		}	
+		return true;
 	}
 
 	/*
@@ -624,13 +583,13 @@ public class Processor {
 					String.valueOf(m_oFile.getIndex())
 				};
 				
-				Logfile.Write("Execute: "+lcCommand);
+				//Logfile.Write("Execute: "+lcCommand);
 				Process loProc = loRt.exec(lcCommand);
 				
 				try {
 					int lnExitCode = loProc.waitFor();
-					Logfile.Write("PostCopyScript exited with Exit Code "+lnExitCode);
 					m_oProcessor.Lock();
+					Logfile.Write("PostCopyScript exited with Exit Code "+lnExitCode);					
 					m_oProcessor.m_nActivePostCopyThreads--;
 					m_oProcessor.Unlock();
 				} catch (InterruptedException e) {
@@ -641,9 +600,5 @@ public class Processor {
 			}
 			
 		}
-	}
-	
-	private class DataChunk {
-		
 	}
 }

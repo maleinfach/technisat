@@ -56,18 +56,6 @@ public class DvrFile {
 			lcFileName = lcFileName.replace(m_aReplace[i], "");
 		}
 		lcFileName = loForm.format(m_dDate) + " " + lcFileName;
-		switch(m_nType) {
-		case 1:
-			break;
-		case 3:
-		case 4:
-		case 7:
-			lcFileName+=".ts";
-			break;
-		default:
-			lcFileName+=".unknown";
-			break;
-		}
 		return lcFileName;
 	}
 	public short getRecNo() throws Exception {
