@@ -357,10 +357,16 @@ public class Processor {
 				loSocketWrite.writeShort(poFile.getIndex()); //File Index		
 				loSocketWrite.writeLong(0); //Start Position (maybe!!)
 				write(loSocketWriteLow.toByteArray()); // Send Message to DVR
+							
+				byte lbResponse = readbyte();
+				long lnFileSize = readlong();
+				byte lbFileCount = readbyte();								
+				String[] laFiles = new String[lbFileCount];
+				for(int i=0; i<laFiles.length; i++) {
+					byte lbFileNo = readbyte();
+					laFiles[lbFileNo] = readstring();
+				}
 				
-				byte[] laFileInfo = new byte[25];
-				Logfile.Data("File Header", laFileInfo, laFileInfo.length);
-				readbyte(laFileInfo);
 				write(Header.PT_ACK);
 				byte[] laTemp = new byte[3];
 				do{		
@@ -380,7 +386,6 @@ public class Processor {
 						lnPerfBytes+=lnChunkSize;
 						lnBytesReaded+=lnChunkSize;
 						if(System.currentTimeMillis()-lnPerfTime>lnPrintInfo) {
-							long lnFileSize = poFile.getFileSize()/1000;
 							long lnFileSizeDl = lnBytesReaded/1000;
 							double ln100 = 100;
 							double lnFileSizeF = lnFileSize;
