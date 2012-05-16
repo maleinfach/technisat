@@ -123,6 +123,7 @@ public class Technisat {
 		System.out.println("Technisat Receiver Command Line Tool");
 		System.out.println("Website Blog: https://www.maleinfach.de");
 		System.out.println("Source Code on GitHub: https://github.com/maleinfach/technisat");
+		System.out.println("Report Bugs: github@maleinfach.de");
 		System.out.println("-----------------");
 		System.out.println("You need to remote your Receiver?");
 		System.out.println("Free and simple dynamic DNS Service: https://www.puship.de");
