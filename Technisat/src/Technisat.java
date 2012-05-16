@@ -121,8 +121,11 @@ public class Technisat {
 		}
 		
 		System.out.println("Technisat Receiver Command Line Tool");
-		System.out.println("Website Blog: http://www.maleinfach.de");
-		System.out.println("GitHub: https://github.com/FreeOrg/technisat");
+		System.out.println("Website Blog: https://www.maleinfach.de");
+		System.out.println("Source Code on GitHub: https://github.com/maleinfach/technisat");
+		System.out.println("-----------------");
+		System.out.println("Youe need to remote your Receiver with changeing IP Addreses?");
+		System.out.println("Free and simple dynamic DNS Service: https://www.puship.de");
 		System.out.println("-----------------");
 
 		BufferedReader loShell = null;
@@ -305,7 +308,7 @@ public class Technisat {
 		System.out.println("");
 		System.out.println("Examples {Selecton}");
 		System.out.println("ls {*} lists all Files in the actual selected directory");
-		System.out.println("ls 232 removes only record Number 232 in the actual directory");
+		System.out.println("rm 232 removes only record Number 232 in the actual directory");
 		System.out.println("");
 		
 		return true;
