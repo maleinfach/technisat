@@ -124,7 +124,7 @@ public class Technisat {
 		System.out.println("Website Blog: https://www.maleinfach.de");
 		System.out.println("Source Code on GitHub: https://github.com/maleinfach/technisat");
 		System.out.println("-----------------");
-		System.out.println("Youe need to remote your Receiver?");
+		System.out.println("You need to remote your Receiver?");
 		System.out.println("Free and simple dynamic DNS Service: https://www.puship.de");
 		System.out.println("-----------------");
 
