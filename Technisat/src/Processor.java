@@ -196,11 +196,16 @@ public class Processor {
 		byte lnFieldLen = readbyte();
 		if(lnFieldLen>0) {
 			byte[] laField = new byte[lnFieldLen & 0xff];
+			int lnStartPos = 0;
 			readbyte(laField);		
-			if(laField[0]==0x05)
-				return new String(laField, 1, laField.length-1, "CP1252");
-			else
-				return new String(laField, "CP1252");
+			switch(laField[0]) {
+			case 0x05:
+			case 0x0b:
+				lnStartPos=1;
+				break;
+			}
+			return new String(laField, lnStartPos, laField.length-lnStartPos, "CP1252");
+
 		} else
 			return "";
 	}
